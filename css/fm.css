@@ -1,0 +1,103 @@
+/* Feature Model SVG Styles (moved from style.css) */
+.main-svg {
+    margin: auto;
+}
+
+.node {
+  cursor: pointer;
+  font-family: monospace;
+}
+
+.node rect {
+  fill: #ebebff;
+  stroke: #888;
+  stroke-width: 1px;
+  transition: all 0.75s;
+}
+
+.node text {
+  fill: #222;
+  text-anchor: middle;
+  user-select: none;
+}
+
+.node.legend {
+  cursor: default;
+}
+.node.legend text {
+  font-size: 0.75rem;
+}
+
+.edge {
+  fill: none;
+  stroke: #888;
+  stroke-width: 1.5px;
+}
+
+.abstract{
+  font-style: italic;
+} 
+
+.abstract rect {
+  fill: #f5f5f5;
+}
+
+.core {
+  text-decoration: underline;
+}
+
+.dead {
+  text-decoration: line-through;
+}
+
+.alt-group-arc {
+  fill: rgba(255,255,255);
+  stroke: #111;
+  stroke-width: 2;
+}
+
+.mandatory-marker {
+  fill: #111;
+  stroke: #111;
+  stroke-width: 1;
+}
+
+.optional-marker {
+  fill: #fff;
+  stroke: #111;
+  stroke-width: 1;
+}
+
+.or-group-arc {
+  fill: rgba(0,0,0);
+  stroke: #111;
+  stroke-width: 2;
+}
+
+.grabbable {
+  cursor: grab;
+}
+.grabbed {
+  cursor: grabbing;
+}
+
+.node-dead {
+  text-decoration: line-through;
+}
+
+.node-core {
+  text-decoration: underline;
+}
+
+.edge-false-optional {
+  stroke: #d32f2f;
+  /* stroke-dasharray: 6,3; */
+}
+.edge-false-optional-marker {
+  fill: #d32f2f;
+  stroke: #d32f2f;
+}
+
+.optional-marker.false-optional {
+  stroke: #d32f2f;
+} 
