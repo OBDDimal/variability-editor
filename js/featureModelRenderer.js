@@ -1,23 +1,6 @@
 import * as d3 from 'd3';
 import { FeatureNode } from './featureNode.js';
-
-// Example: Root has mandatory/optional children, Feature B has only xor children
-const featureModelRoot = new FeatureNode('Root', {
-  children: [
-    new FeatureNode('Feature A', { type: 'mandatory' }),
-    new FeatureNode('Feature B', {
-      type: 'mandatory',
-      children: [
-        new FeatureNode('Feature B1', { type: 'or', attr: ["dead"] }),
-        new FeatureNode('Feature B2', { type: 'or', attr: ["core"]  }),
-        new FeatureNode('Feature B3', { type: 'or' }),
-        new FeatureNode('Feature B4', { type: 'or' }),
-        new FeatureNode('Feature B5', { type: 'or' }),
-      ]
-    }),
-    new FeatureNode('Feature C', { type: 'optional', attr: ["false-optional"] })
-  ]
-});
+import isEnglish from 'is-english';
 
 let direction = 'v'; // 'v' = vertical, 'h' = horizontal
 const rectWidth = 100;
@@ -44,64 +27,15 @@ function getNodePath(node) {
   return path.join('/');
 }
 
-function ensureLevelDistanceInput(containerId) {
-  let input = document.getElementById('level-distance-input');
-  if (!input) {
-    input = document.createElement('input');
-    input.type = 'number';
-    input.id = 'level-distance-input';
-    input.min = 50;
-    input.max = 200;
-    input.value = levelDistance;
-    input.style.position = 'absolute';
-    input.style.top = '50px';
-    input.style.right = '10px';
-    input.style.width = '60px';
-    input.title = 'Level distance';
-    input.onchange = (e) => {
-      let val = parseInt(e.target.value, 10);
-      if (isNaN(val)) val = 50;
-      val = Math.max(50, Math.min(200, val));
-      levelDistance = val;
-      input.value = val;
-      renderFeatureModel(containerId);
-    };
-    document.body.appendChild(input);
-  }
-}
-
-function ensureSiblingDistanceInput(containerId) {
-  let input = document.getElementById('sibling-distance-input');
-  if (!input) {
-    input = document.createElement('input');
-    input.type = 'number';
-    input.id = 'sibling-distance-input';
-    input.min = 5;
-    input.max = 200;
-    input.value = siblingDistance;
-    input.style.position = 'absolute';
-    input.style.top = '90px';
-    input.style.right = '10px';
-    input.style.width = '60px';
-    input.title = 'Sibling distance';
-    input.onchange = (e) => {
-      let val = parseInt(e.target.value, 10);
-      if (isNaN(val)) val = 25;
-      val = Math.max(5, Math.min(200, val));
-      siblingDistance = val;
-      input.value = val;
-      renderFeatureModel(containerId);
-    };
-    document.body.appendChild(input);
-  }
-}
-
 function setupZoom(svg, svgContent, width, height) {
   const zoom = d3.zoom()
     .scaleExtent([0.5, 2])
     .filter(event => {
-      // Only allow wheel for zoom, and left mouse for pan
-      return event.type === 'wheel' || (event.type === 'mousedown' && event.button === 0);
+      // Only allow wheel for zoom, and left mouse for pan, but not if target is a node
+      return (
+        (event.type === 'wheel' || (event.type === 'mousedown' && event.button === 0)) &&
+        !event.target.closest('.node')
+      );
     })
     .on('start', function() {
       svg.classed('grabbed', true).classed('grabbable', false);
@@ -141,6 +75,7 @@ function positionLegendNextToTreeBBox(containerId) {
   const legend = document.getElementById('legend');
   if (!legend) return;
   if (legend.dataset.userMoved === 'true') return;
+  const container = document.getElementById(containerId);
   const svg = document.querySelector(`#${containerId} svg`);
   if (!svg) return;
   const g = svg.querySelector('g#draggable');
@@ -155,7 +90,15 @@ function positionLegendNextToTreeBBox(containerId) {
   legend.style.position = 'absolute';
   legend.style.left = (screenPt.x + 100) + 'px';
   legend.style.top = (screenPt.y) + 'px';
-  legend.dataset.userMoved = 'true'
+  legend.dataset.userMoved = 'true';
+  // Ensure legend is fully visible in the container
+  const legendRect = legend.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  // If legend is outside right or bottom, move it to top-right of container
+  if (legendRect.right > containerRect.right || legendRect.bottom > containerRect.bottom) {
+    legend.style.left = (containerRect.right - legendRect.width) + 'px';
+    legend.style.top = containerRect.top + 'px';
+  }
 }
 
 function ensureLegend() {
@@ -229,8 +172,7 @@ function updateLegendVisibility(root) {
     if (typeof collapsedMap === 'object' && collapsedMap[path]) return;
     if (node.children) node.children.forEach(scan);
   }
-  // root is a d3.hierarchy node in renderFeatureModel
-  scan(d3.hierarchy(featureModelRoot.toObject()));
+  scan(root);
   // Show/hide base legend item
   const baseRow = document.querySelector('#legend [data-legend-type="base"]');
   if (baseRow) {
@@ -313,19 +255,23 @@ function showContextMenu(event, actions) {
       const itemDiv = menuSel.append('div')
         .datum(a)
         .attr('class', function() {
+          let base = 'menu-item';
           if (isMain) {
             let isActive = (i === activeIndex) && menu.node() === document.activeElement;
-            return 'menu-item' + (isActive ? ' active' : '');
+            if (a.disabled) base += ' disabled';
+            return base + (isActive ? ' active' : '');
           } else {
-            return 'menu-item' + (i === submenuActiveIndex && menuSel.node() === document.activeElement ? ' active' : '');
+            if (a.disabled) base += ' disabled';
+            return base + (i === submenuActiveIndex && menuSel.node() === document.activeElement ? ' active' : '');
           }
         })
-        .attr('tabindex', -1)
+        .attr('tabindex', a.disabled ? null : -1)
         .style('padding', '8px 20px 8px 16px')
-        .style('cursor', 'pointer')
+        .style('cursor', a.disabled ? 'not-allowed' : 'pointer')
         .style('display', 'flex')
         .style('align-items', 'center')
         .on('click', (e, a2) => {
+          if (a2.disabled) return;
           if (a2.submenu) {
             // Do nothing, handled by hover
           } else if (a2.action) {
@@ -419,16 +365,18 @@ function showContextMenu(event, actions) {
 }
 
 // --- Reset View Utility ---
-function resetView(svg, svgContent, width, height, containerId, shouldUncollapse = false) {
+function resetView(svg, svgContent, width, height, containerId, shouldUncollapse = false, options = {}) {
   if (shouldUncollapse) {
     collapsedMap = {};
     forceInitialView = true;
-    renderFeatureModel(containerId);
+    isFirstRender = true;
+    renderFeatureModel(containerId, options);
     return;
   }
   // Fallback: just trigger a full re-render as on initial
   forceInitialView = true;
-  renderFeatureModel(containerId);
+  isFirstRender = true;
+  renderFeatureModel(containerId, options);
 }
 
 // --- Legend Auto-Position Utility ---
@@ -525,11 +473,72 @@ function exportAsPNG(includeLegend = true) {
   alert('Export as PNG' + (includeLegend ? '' : ' (w/o legend)') + ' not yet implemented.');
 }
 
-export function renderFeatureModel(containerId = 'app') {
+function buildFeatureNodeFromObject(obj) {
+  if (!obj) return null;
+  const { name, children = [], groupType, mandatory, abstract, type, collapsed, attr } = obj;
+  return new FeatureNode(name, {
+    children: (children || []).map(buildFeatureNodeFromObject),
+    groupType,
+    mandatory,
+    abstract,
+    type,
+    collapsed,
+    attr
+  });
+}
+
+// Utility: find node in plain model object by path
+function getModelNodeByPath(model, path) {
+  const parts = path.split('/').slice(1); // skip 'root'
+  let node = model;
+  for (const part of parts) {
+    if (!node.children) return null;
+    node = node.children.find(child => child.name === part);
+    if (!node) return null;
+  }
+  return node;
+}
+
+// --- Auto-collapse helper ---
+function autoCollapseDeeperThan(root, maxLevel) {
+  root.each(function(d) {
+    if (d.depth > maxLevel && d.children) {
+      collapsedMap[getNodePath(d)] = true;
+    }
+  });
+}
+
+function isEnglishFeatureName(name) {
+  // Split on non-alphabetic characters, check each part
+  const parts = name.split(/[^A-Za-z]+/).filter(Boolean);
+  if (parts.length === 0) return false;
+  return parts.every(part => isEnglish(part));
+}
+
+// Helper: get display text for a node
+function getDisplayText(name) {
+  const first6 = name.slice(0, 6);
+  const letterCount = (first6.match(/[a-zA-Z]/g) || []).length;
+  if (name.length > 6 && letterCount <= 3) {
+    return first6;
+  }
+  return name;
+}
+
+export function renderFeatureModel(containerId = 'app', options = {}) {
   ensureLegend();
   // Save current transform if SVG exists
   const oldSvg = d3.select(`#${containerId} svg`);
   let prevRootScreenPos = null;
+  let direction = options.orientation === 'v' ? 'v' : 'h';
+  let levelDistance = typeof options.grow_y === 'number' ? options.grow_y : 100;
+  let siblingDistance = typeof options.grow_x === 'number' ? options.grow_x : 25;
+  // Use model from options
+  if (!options.model) {
+    console.warn('No model provided to FeatureModelRenderer.');
+    return;
+  }
+  const featureModelRoot = buildFeatureNodeFromObject(options.model);
   if (!oldSvg.empty()) {
     const g = oldSvg.select('g#draggable');
     const transform = g.attr('transform');
@@ -558,16 +567,13 @@ export function renderFeatureModel(containerId = 'app') {
   d3.select(`#${containerId} svg`).remove();
 
   const container = document.getElementById(containerId);
-  const width = container.offsetWidth || 800;
-  const height = container.offsetHeight || 600;
-
-  ensureLevelDistanceInput(containerId);
-  ensureSiblingDistanceInput(containerId);
+  const width = container.clientWidth || container.offsetWidth || 800;
+  const height = container.clientHeight || container.offsetHeight || 600;
 
   // Set up resize listener once
   if (!resizeListenerSet) {
     window.addEventListener('resize', () => {
-      renderFeatureModel(containerId);
+      renderFeatureModel(containerId, options);
     });
     resizeListenerSet = true;
   }
@@ -581,13 +587,49 @@ export function renderFeatureModel(containerId = 'app') {
 
   const svgContent = svg.append('g').attr('id', 'draggable');
 
-  // Directional layout
-  const treeLayout = d3.tree().nodeSize(
-    direction === 'v'
-      ? [rectWidth + siblingDistance, rectHeight + levelDistance]
-      : [rectHeight + siblingDistance, rectWidth + levelDistance]
-  );
-  // treeLayout.separation(() => 1);
+  // --- Measure text widths for all nodes before layout ---
+  // Helper to traverse and collect all node names
+  function collectNames(node, level = 0, arr = []) {
+    if (!arr[level]) arr[level] = [];
+    arr[level].push(node.data.name);
+    if (node.children) node.children.forEach(child => collectNames(child, level + 1, arr));
+    return arr;
+  }
+  // Build hierarchy first (no layout yet)
+  let root = d3.hierarchy(featureModelRoot.toObject());
+  // Create a hidden SVG for measuring text widths
+  let measureSvg = d3.select('body').select('svg#measure-svg');
+  if (measureSvg.empty()) {
+    measureSvg = d3.select('body').append('svg').attr('id', 'measure-svg').style('position', 'absolute').style('left', '-9999px').style('top', '-9999px');
+  }
+  // Measure widths for all node names
+  function measureTextWidth(text) {
+    const textElem = measureSvg.append('text').attr('font-family', 'inherit').text(text);
+    let w = 0;
+    try { w = textElem.node().getBBox().width; } catch (e) { w = text.length * 8; }
+    textElem.remove();
+    return w;
+  }
+  root.each(d => {
+    const displayText = getDisplayText(d.data.name);
+    const textWidth = measureTextWidth(displayText);
+    const padding = 24;
+    d._rectWidth = Math.max(rectWidth, textWidth + padding);
+    d._displayText = displayText;
+  });
+  // Compute max width at each level for layout
+  const namesByLevel = collectNames(root);
+  const maxWidthByLevel = namesByLevel.map(names => Math.max(...names.map(measureTextWidth)) + 24);
+  // Now set up the tree layout so that grow_x is the actual space between adjacent siblings
+  const treeLayout = d3.tree()
+    .nodeSize([1, rectHeight + levelDistance])
+    .separation((a, b) => {
+      if (a.parent === b.parent) {
+        // (widthA / 2) + grow_x + (widthB / 2) in SVG units
+        return (a._rectWidth / 2 + siblingDistance + b._rectWidth / 2);
+      }
+      return 1; // default for non-siblings
+    });
 
   // Build hierarchy with collapsed filtering
   function filterCollapsed(node) {
@@ -597,9 +639,54 @@ export function renderFeatureModel(containerId = 'app') {
       node.children.forEach(filterCollapsed);
     }
   }
-  const root = d3.hierarchy(featureModelRoot.toObject());
+
+  // --- Auto-collapse all but first two levels on initial render ---
+  if (isFirstRender) {
+    collapsedMap = {};
+    autoCollapseDeeperThan(root, 1); // keep first two levels expanded
+  }
   filterCollapsed(root);
   treeLayout(root);
+
+  // Ensure minimum siblingDistance between all nodes at the same level (not just siblings)
+  function enforceMinSiblingGap(root, grow_x) {
+    const levels = {};
+    root.each(d => {
+      if (!levels[d.depth]) levels[d.depth] = [];
+      levels[d.depth].push(d);
+    });
+    Object.values(levels).forEach(nodes => {
+      // DO NOT SORT! Maintain original sibling order.
+      let prevRight = null;
+      nodes.forEach(node => {
+        const left = node.x - (node._rectWidth / 2);
+        if (prevRight !== null && left < prevRight + grow_x) {
+          const shift = (prevRight + grow_x) - left;
+          node.each(n => { n.x += shift; });
+        }
+        prevRight = node.x + (node._rectWidth / 2);
+      });
+    });
+  }
+  enforceMinSiblingGap(root, siblingDistance);
+
+  // Center each parent node over the bounding box of its children
+  function centerParentsOverChildren(root) {
+    root.eachAfter(node => {
+      if (node.children && node.children.length > 0) {
+        const left = Math.min(...node.children.map(
+          c => c.x - (c._rectWidth / 2)
+        ));
+        const right = Math.max(...node.children.map(
+          c => c.x + (c._rectWidth / 2)
+        ));
+        const center = (left + right) / 2;
+        node.x = center;
+      }
+    });
+  }
+  centerParentsOverChildren(root);
+  enforceMinSiblingGap(root, siblingDistance);
 
   // Shift all nodes so root is at (0,0)
   const rootX = root.x;
@@ -631,10 +718,10 @@ export function renderFeatureModel(containerId = 'app') {
       if (d.target.data.attr && d.target.data.attr.includes('false-optional')) cls += ' edge-false-optional';
       return cls;
     })
-    .attr('x1', d => direction === 'v' ? d.source.x + rectWidth / 2 : d.source.x + rectWidth / 2 + rectWidth / 2)
-    .attr('y1', d => direction === 'v' ? d.source.y + rectHeight / 2 + rectHeight / 2 : d.source.y + rectHeight / 2)
-    .attr('x2', d => direction === 'v' ? d.target.x + rectWidth / 2 : d.target.x + rectWidth / 2 - rectWidth / 2)
-    .attr('y2', d => direction === 'v' ? d.target.y + rectHeight / 2 - rectHeight / 2 : d.target.y + rectHeight / 2);
+    .attr('x1', d => direction === 'v' ? d.source.x : d.source.x + (d.source._rectWidth || rectWidth) / 2)
+    .attr('y1', d => direction === 'v' ? d.source.y + rectHeight / 2 : d.source.y)
+    .attr('x2', d => direction === 'v' ? d.target.x : d.target.x - (d.target._rectWidth || rectWidth) / 2)
+    .attr('y2', d => direction === 'v' ? d.target.y - rectHeight / 2 : d.target.y);
 
   // Add red marker for false-optional edges
   svgContent.selectAll('circle.edge-false-optional-marker')
@@ -652,58 +739,107 @@ export function renderFeatureModel(containerId = 'app') {
     .enter()
     .append('g')
     .attr('class', d => `node${d.data.abstract ? ' abstract' : ''}`)
-    .attr('transform', d => `translate(${d.x + rectWidth / 2},${d.y + rectHeight / 2})`)
+    .attr('transform', d => `translate(${d.x},${d.y})`)
     .on('click', function(event, d) {
       event.stopPropagation();
       const path = getNodePath(d);
       collapsedMap[path] = !collapsedMap[path];
-      renderFeatureModel(containerId);
+      renderFeatureModel(containerId, options);
     })
     .on('contextmenu', function(event, d) {
       event.preventDefault();
       d3.selectAll('.custom-context-menu').remove();
       const path = getNodePath(d);
-      const featureNode = getFeatureNodeByPath(featureModelRoot, path);
-      const parentNode = getParentFeatureNodeByPath(featureModelRoot, path);
+      const modelNode = getModelNodeByPath(options.model, path);
+      const parentPath = path.split('/').slice(0, -1).join('/');
+      const parentModelNode = parentPath ? getModelNodeByPath(options.model, parentPath) : null;
+      // Find siblings and index
+      let siblings = [];
+      let idx = -1;
+      if (parentModelNode && parentModelNode.children) {
+        siblings = parentModelNode.children;
+        idx = siblings.findIndex(child => child.name === d.data.name);
+      }
       const actions = [
         { label: 'Change to', submenu: [
-          { label: 'mandatory (feature)', action: () => { featureNode.type = 'mandatory'; d3.selectAll('.custom-context-menu').remove(); renderFeatureModel(containerId); } },
-          { label: 'optional (feature)', action: () => { featureNode.type = 'optional'; d3.selectAll('.custom-context-menu').remove(); renderFeatureModel(containerId); } },
+          { label: 'mandatory (feature)', action: () => { modelNode.type = 'mandatory'; d3.selectAll('.custom-context-menu').remove(); renderFeatureModel(containerId, options); } },
+          { label: 'optional (feature)', action: () => { modelNode.type = 'optional'; d3.selectAll('.custom-context-menu').remove(); renderFeatureModel(containerId, options); } },
           { label: 'or (group)', action: () => {
-              if (parentNode && parentNode.children) {
-                parentNode.children.forEach(child => { child.type = 'or'; });
+              if (parentModelNode && parentModelNode.children) {
+                parentModelNode.children.forEach(child => { child.type = 'or'; });
               } else {
-                featureNode.type = 'or';
+                modelNode.type = 'or';
               }
               d3.selectAll('.custom-context-menu').remove();
-              renderFeatureModel(containerId);
+              renderFeatureModel(containerId, options);
             }
           },
           { label: 'xor (group)', action: () => {
-              if (parentNode && parentNode.children) {
-                parentNode.children.forEach(child => { child.type = 'xor'; });
+              if (parentModelNode && parentModelNode.children) {
+                parentModelNode.children.forEach(child => { child.type = 'xor'; });
               } else {
-                featureNode.type = 'xor';
+                modelNode.type = 'xor';
               }
               d3.selectAll('.custom-context-menu').remove();
-              renderFeatureModel(containerId);
+              renderFeatureModel(containerId, options);
             }
           }
         ] },
-        { label: 'Collapse below', action: () => {
-            collapsedMap[path] = !collapsedMap[path];
+        { label: 'Rename', action: () => {
             d3.selectAll('.custom-context-menu').remove();
-            renderFeatureModel(containerId);
+            showRenameInput(d, modelNode, siblings, idx, containerId, options);
           }
-        }
+        },
+        { label: 'Collapsing', submenu: [
+          {
+            label: (collapsedMap[path] ? 'Uncollapse below' : 'Collapse below'),
+            action: (modelNode && modelNode.children && modelNode.children.length > 0) ? () => {
+              collapsedMap[path] = !collapsedMap[path];
+              d3.selectAll('.custom-context-menu').remove();
+              renderFeatureModel(containerId, options);
+            } : null,
+            disabled: !(modelNode && modelNode.children && modelNode.children.length > 0)
+          },
+          { label: 'Collapse all siblings to the left', action: () => {
+              if (parentModelNode && siblings.length > 1 && idx > 0) {
+                for (let i = 0; i < idx; ++i) {
+                  const sibPath = parentPath + '/' + siblings[i].name;
+                  collapsedMap[sibPath] = true;
+                }
+                d3.selectAll('.custom-context-menu').remove();
+                renderFeatureModel(containerId, options);
+              }
+            }
+          },
+          { label: 'Collapse all siblings to the right', action: () => {
+              if (parentModelNode && siblings.length > 1 && idx >= 0 && idx < siblings.length - 1) {
+                for (let i = idx + 1; i < siblings.length; ++i) {
+                  const sibPath = parentPath + '/' + siblings[i].name;
+                  collapsedMap[sibPath] = true;
+                }
+                d3.selectAll('.custom-context-menu').remove();
+                renderFeatureModel(containerId, options);
+              }
+            }
+          }
+        ]}
       ];
       showContextMenu(event, actions);
     });
 
+  // Add native SVG <title> for tooltip if name is shortened
+  node.each(function(d) {
+    const name = d.data.name;
+    const displayText = d._displayText;
+    if (displayText !== name) {
+      d3.select(this).append('title').text(name);
+    }
+  });
+
   node.append('rect')
-    .attr('width', rectWidth)
+    .attr('width', d => d._rectWidth)
     .attr('height', rectHeight)
-    .attr('x', -rectWidth / 2)
+    .attr('x', d => -d._rectWidth / 2)
     .attr('y', -rectHeight / 2)
     .attr('rx', 6)
     .attr('ry', 6);
@@ -719,7 +855,7 @@ export function renderFeatureModel(containerId = 'app') {
       if (attr.includes('core')) cls += ' node-core';
       return cls.trim();
     })
-    .text(d => d.data.name);
+    .text(d => d._displayText);
 
   // Draw node markers (mandatory/optional) after nodes so they appear above
   root.descendants().forEach(parent => {
@@ -738,8 +874,8 @@ export function renderFeatureModel(containerId = 'app') {
         .append('circle')
         .attr('class', 'mandatory-marker')
         .attr('r', 6)
-        .attr('cx', d => direction === 'v' ? d.target.x + rectWidth / 2 : d.target.x + rectWidth / 2 - rectWidth / 2)
-        .attr('cy', d => direction === 'v' ? d.target.y + rectHeight / 2 - rectHeight / 2 : d.target.y + rectHeight / 2)
+        .attr('cx', d => direction === 'v' ? d.target.x : d.target.x - (d.target._rectWidth || rectWidth) / 2)
+        .attr('cy', d => direction === 'v' ? d.target.y - (d.target._rectHeight || rectHeight) / 2 : d.target.y)
         .raise();
       svgContent.selectAll('circle.optional-marker-' + parent.data.name)
         .data(links.filter(d => d.target.data.type === 'optional'))
@@ -751,8 +887,8 @@ export function renderFeatureModel(containerId = 'app') {
           return cls;
         })
         .attr('r', 6)
-        .attr('cx', d => direction === 'v' ? d.target.x + rectWidth / 2 : d.target.x + rectWidth / 2 - rectWidth / 2)
-        .attr('cy', d => direction === 'v' ? d.target.y + rectHeight / 2 - rectHeight / 2 : d.target.y + rectHeight / 2)
+        .attr('cx', d => direction === 'v' ? d.target.x : d.target.x - (d.target._rectWidth || rectWidth) / 2)
+        .attr('cy', d => direction === 'v' ? d.target.y - (d.target._rectHeight || rectHeight) / 2 : d.target.y)
         .raise();
     }
   });
@@ -762,7 +898,7 @@ export function renderFeatureModel(containerId = 'app') {
     const path = getNodePath(node);
     if (collapsedMap[path]) {
       // Find the original FeatureNode for this path
-      const featureNode = getFeatureNodeByPath(featureModelRoot, path);
+      const featureNode = getModelNodeByPath(options.model, path);
       if (featureNode && featureNode.children && featureNode.children.length > 0) {
         // Count all descendants in the original model
         let count = 0;
@@ -800,7 +936,7 @@ export function renderFeatureModel(containerId = 'app') {
         // Draw badge and text in a single group
         const badgeWidth = 32, badgeHeight = 20;
         const badgeGroup = svgContent.append('g')
-          .attr('transform', `translate(${node.x + rectWidth / 2},${node.y + rectHeight / 2 + rectHeight / 2 + 16})`)
+          .attr('transform', `translate(${node.x},${node.y + rectHeight / 2 + 16})`)
           .style('cursor', 'pointer')
           .on('mouseenter', function(event) {
             d3.selectAll('.badge-tooltip').remove();
@@ -897,16 +1033,13 @@ export function renderFeatureModel(containerId = 'app') {
     currentTransform = newTransform;
   }
 
-  // Add direction toggle button (for MVP, simple button)
-  addDirectionToggle(containerId);
-
   // Inject improved context menu styles if not already present
   if (!document.getElementById('custom-context-menu-style')) {
     const style = document.createElement('style');
     style.id = 'custom-context-menu-style';
     style.textContent = `
       .custom-context-menu {
-        font-family: inherit;
+        font-family: sans-serif !important;
         min-width: 180px;
         background: #fff;
         border: 1px solid #bbb;
@@ -937,6 +1070,12 @@ export function renderFeatureModel(containerId = 'app') {
         display: flex;
         align-items: center;
         position: relative;
+      }
+      .custom-context-menu .menu-item.disabled {
+        color: #aaa !important;
+        background: #f7f7f7 !important;
+        cursor: not-allowed !important;
+        pointer-events: none !important;
       }
       .custom-context-menu .menu-item.active,
       .custom-context-menu .menu-item:hover,
@@ -1009,13 +1148,13 @@ export function renderFeatureModel(containerId = 'app') {
 
   // After rendering, position legend next to tree bounding box
   positionLegendAuto(containerId);
-  setTimeout(() => { updateLegendVisibility(featureModelRoot); }, 0);
+  setTimeout(() => { updateLegendVisibility(root); }, 0);
 
   // --- Add context menu to SVG surface ---
   svg.on('contextmenu', function(event) {
     if (event.target.closest('g.node')) return;
     const actions = [
-      { label: 'Reset view', action: () => { resetView(svg, svgContent, width, height, containerId, true); } },
+      { label: 'Reset view', action: () => { resetView(svg, svgContent, width, height, containerId, true, options); } },
       { separator: true },
       { label: 'Export as', submenu: [
         { label: 'SVG', action: () => exportAsSVG() },
@@ -1036,21 +1175,6 @@ function drawGroupArc(parent, group, type, direction, rectWidth, rectHeight, svg
   svgContent.append('path')
     .attr('class', type === 'or' ? 'or-group-arc' : 'alt-group-arc')
     .attr('d', pathData);
-}
-
-function addDirectionToggle(containerId) {
-  if (document.getElementById('direction-toggle')) return;
-  const btn = document.createElement('button');
-  btn.id = 'direction-toggle';
-  btn.textContent = 'Toggle Direction';
-  btn.style.position = 'absolute';
-  btn.style.top = '10px';
-  btn.style.right = '10px';
-  btn.onclick = () => {
-    direction = direction === 'v' ? 'h' : 'v';
-    renderFeatureModel(containerId);
-  };
-  document.body.appendChild(btn);
 }
 
 // Utility to describe a filled SVG arc (pie slice)
@@ -1076,38 +1200,43 @@ function polarToCartesian(cx, cy, r, angle) {
 
 // Helper to calculate arc center, radius, and angles
 function getArcAngles(parent, children, direction, rectWidth, rectHeight) {
+  const getWidth = n => n.data && n.data._rectWidth ? n.data._rectWidth : (n._rectWidth || rectWidth);
+  const parentWidth = parent._rectWidth || rectWidth;
   const first = children[0];
   const middle = children[Math.floor(children.length / 2)];
   const last = children[children.length - 1];
   let cx, cy, r, angleTo, startAngle, endAngle;
+  // Get level distance from global or fallback
+  const maxLevelDistance = (typeof window !== 'undefined' && window.__FM_LEVEL_DISTANCE) ? window.__FM_LEVEL_DISTANCE : 100;
+  const maxSiblingDistance = (typeof window !== 'undefined' && window.__FM_SIBLING_DISTANCE) ? window.__FM_SIBLING_DISTANCE : 25;
   if (direction === 'v') {
-    cx = parent.x + rectWidth / 2;
-    cy = parent.y + rectHeight / 2 + rectHeight / 2;
-    angleTo = (child) => {
-      const dx = (child.x + rectWidth / 2) - cx;
-      const dy = (child.y + rectHeight / 2 - rectHeight / 2) - cy;
-      return Math.atan2(dy, dx) * 180 / Math.PI + 90;
-    };
-    startAngle = angleTo(first);
-    endAngle = angleTo(last);
-    if (endAngle < startAngle) [startAngle, endAngle] = [endAngle, startAngle];
-    // Arc radius: 1/4 of distance from parent to first child
-    const dist = Math.sqrt(Math.pow((middle.x + rectWidth / 2) - cx, 2) + Math.pow((middle.y + rectHeight / 2 - rectHeight / 2) - cy, 2));
-    r = dist / 3 || 40;
-  } else {
-    cx = parent.x + rectWidth / 2 + rectWidth / 2;
+    cx = parent.x;
     cy = parent.y + rectHeight / 2;
+    const childY = middle.y - rectHeight / 2;
+    r = Math.max(24, childY - cy - 8);
+    r = Math.min(r, maxLevelDistance / 3);
     angleTo = (child) => {
-      const dx = (child.x + rectWidth / 2 - rectWidth / 2) - cx;
-      const dy = (child.y + rectHeight / 2) - cy;
+      const dx = child.x - cx;
+      const dy = (child.y - rectHeight / 2) - cy;
       return Math.atan2(dy, dx) * 180 / Math.PI + 90;
     };
     startAngle = angleTo(first);
     endAngle = angleTo(last);
     if (endAngle < startAngle) [startAngle, endAngle] = [endAngle, startAngle];
-    // Arc radius: 1/4 of distance from parent to first child
-    const dist = Math.sqrt(Math.pow((middle.x + rectWidth / 2 - rectWidth / 2) - cx, 2) + Math.pow((middle.y + rectHeight / 2) - cy, 2));
-    r = dist / 3 || 40;
+  } else {
+    cx = parent.x + parentWidth / 2;
+    cy = parent.y;
+    const childX = middle.x - getWidth(middle) / 2;
+    r = Math.max(24, childX - cx - 8);
+    r = Math.min(r, maxSiblingDistance / 4);
+    angleTo = (child) => {
+      const dx = (child.x - getWidth(child) / 2) - cx;
+      const dy = child.y - cy;
+      return Math.atan2(dy, dx) * 180 / Math.PI + 90;
+    };
+    startAngle = angleTo(first);
+    endAngle = angleTo(last);
+    if (endAngle < startAngle) [startAngle, endAngle] = [endAngle, startAngle];
   }
   return { cx, cy, r, startAngle, endAngle };
 }
@@ -1134,4 +1263,99 @@ function getParentFeatureNodeByPath(root, path) {
     if (!node) return null;
   }
   return node;
+}
+
+export function FeatureModelRenderer(options = {}) {
+  let container = options.container || '#app';
+  if (container.startsWith('#')) container = container.slice(1);
+  // Set defaults if not provided
+  const opts = {
+    orientation: typeof options.orientation === 'string' ? options.orientation : 'v',
+    grow_x: typeof options.grow_x === 'number' ? options.grow_x : 25,
+    grow_y: typeof options.grow_y === 'number' ? options.grow_y : 100,
+    container: container,
+    model: options.model
+  };
+  renderFeatureModel(container, opts);
+}
+
+// Attach to window for global usage if not running as a module
+if (typeof window !== 'undefined') {
+  window.FeatureModelRenderer = FeatureModelRenderer;
+}
+
+// --- Rename input overlay logic ---
+function showRenameInput(d, modelNode, siblings, idx, containerId, options) {
+  // Remove any existing rename input
+  const oldInput = document.getElementById('rename-input-box');
+  if (oldInput) oldInput.remove();
+
+  // Find SVG rect element for this node
+  const svg = document.querySelector(`#${containerId} svg`);
+  // Find the node's group element
+  const nodeG = Array.from(svg.querySelectorAll('g.node')).find(g => {
+    const text = g.querySelector('text');
+    return text && text.textContent === d._displayText;
+  });
+  if (!nodeG) return;
+  const rectElem = nodeG.querySelector('rect');
+  if (!rectElem) return;
+  const rectBox = rectElem.getBoundingClientRect();
+
+  // Create input
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = modelNode.name;
+  input.id = 'rename-input-box';
+  input.style.position = 'fixed';
+  input.style.left = `${rectBox.left}px`;
+  input.style.top = `${rectBox.top}px`;
+  input.style.width = `${rectBox.width}px`;
+  input.style.height = `${rectBox.height}px`;
+  input.style.fontSize = '15px';
+  input.style.fontFamily = 'monospace';
+  input.style.zIndex = 10001;
+  input.style.padding = '0 8px';
+  input.style.border = '2px solid #1976d2';
+  input.style.borderRadius = '6px';
+  input.style.background = '#fff';
+  input.style.boxShadow = '0 2px 8px rgba(0,0,0,0.13)';
+  input.style.outline = 'none';
+  input.style.textAlign = 'center';
+
+  document.body.appendChild(input);
+  input.focus();
+  input.select();
+
+  // Helper: check uniqueness among siblings
+  function isUniqueName(name) {
+    return siblings.every((s, i) => i === idx || s.name !== name);
+  }
+
+  // Handle key events
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      const newName = input.value.trim();
+      if (!newName) {
+        input.style.border = '2px solid #d32f2f';
+        input.style.background = '#fff0f0';
+        return;
+      }
+      if (!isUniqueName(newName)) {
+        input.style.border = '2px solid #d32f2f';
+        input.style.background = '#fff0f0';
+        return;
+      }
+      // Commit rename
+      modelNode.name = newName;
+      input.remove();
+      renderFeatureModel(containerId, options);
+    } else if (e.key === 'Escape') {
+      input.remove();
+    }
+  });
+  // Remove input if focus lost
+  input.addEventListener('blur', function() {
+    setTimeout(() => { if (document.activeElement !== input) input.remove(); }, 100);
+  });
 } 

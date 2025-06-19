@@ -7,11 +7,94 @@
   <link rel="stylesheet" href="css/style.css">
   <style>
     body { margin: 0; }
-    #app { position: relative; min-height: 100vh; }
+    #app { position: relative; width: 100vw; height: 100vh; min-height: 100vh; min-width: 100vw; }
+    svg.main-svg { width: 100% !important; height: 100% !important; display: block; }
   </style>
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="js/app.js"></script>
+  <script type="module">
+    import { FeatureModelRenderer } from './js/featureModelRenderer.js';
+    // Fetch and translate FeatureIDE XML to JSON
+    async function fetchAndTranslateFeatureIDE(url) {
+      const xmlText = await fetch(url).then(r => r.text());
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(xmlText, 'application/xml');
+      // --- Parse features ---
+      function parseStruct(node, parentType = null, parentName = null, isRoot = false) {
+        const tag = node.tagName;
+        const name = node.getAttribute('name');
+        const isAbstract = node.getAttribute('abstract') === 'true';
+        const isMandatory = node.getAttribute('mandatory') === 'true';
+
+        if (tag === 'feature') {
+          let type;
+          if (parentType === 'and') {
+            type = isMandatory ? 'mandatory' : 'optional';
+          } else if (parentType === 'or') {
+            type = 'or';
+          } else if (parentType === 'alt') {
+            type = 'xor';
+          }
+          return { name, type, abstract: false };
+        }
+
+        // Group node: <and>, <or>, <alt>
+        const typeMap = { and: 'and', or: 'or', alt: 'xor' };
+        const groupType = typeMap[tag];
+        const children = Array.from(node.children).map(child => parseStruct(child, tag, name, false));
+
+        // For <or> and <alt>, assign type to children
+        if (tag === 'or' || tag === 'alt') {
+          children.forEach(child => { child.type = groupType; });
+          // If only one child, make it mandatory
+          if (children.length === 1) {
+            children[0].type = 'mandatory';
+          }
+        }
+
+        // For <and>, assign type to children based on their mandatory attribute
+        if (tag === 'and') {
+          children.forEach(child => {
+            if (!child.type) {
+              child.type = child.mandatory === 'true' ? 'mandatory' : 'optional';
+            }
+          });
+          // If only one child, and not explicitly mandatory, make it optional
+          if (children.length === 1 && !children[0].type) {
+            children[0].type = 'optional';
+          }
+        }
+
+        // Abstract features: always propagate
+        // Root node: always mandatory
+        let type = undefined;
+        if (isRoot) {
+          type = 'mandatory';
+        }
+
+        return {
+          name,
+          type,
+          abstract: isAbstract,
+          children
+        };
+      }
+      const structRoot = xml.querySelector('struct').firstElementChild;
+      const features = parseStruct(structRoot, null, null, true);
+      // --- Parse constraints (not rendered for now) ---
+      // function parseConstraint(node) { ... }
+      // const constraints = ...
+      return { features };
+    }
+    fetchAndTranslateFeatureIDE('https://raw.githubusercontent.com/FeatureIDE/FeatureIDE/develop/plugins/de.ovgu.featureide.examples/featureide_examples/FeatureModels/BerkeleyDB/model.xml')
+      .then(model => {
+        FeatureModelRenderer({
+          container: '#app',
+          model: model.features,
+          grow_x: 25
+        });
+      });
+  </script>
 </body>
 </html> 
