@@ -1041,8 +1041,8 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
       .custom-context-menu {
         font-family: sans-serif !important;
         min-width: 180px;
-        background: #fff;
-        border: 1px solid #bbb;
+        background: #f4f6fa;
+        border: 1.5px solid #90a4ae;
         box-shadow: 0 4px 16px rgba(0,0,0,0.13);
         padding: 6px 0;
         z-index: 10000;
@@ -1073,7 +1073,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
       }
       .custom-context-menu .menu-item.disabled {
         color: #aaa !important;
-        background: #f7f7f7 !important;
+        background: #e3eafc !important;
         cursor: not-allowed !important;
         pointer-events: none !important;
       }
@@ -1081,7 +1081,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
       .custom-context-menu .menu-item:hover,
       .custom-context-menu .menu-item:focus,
       .custom-context-menu .menu-item:focus-within {
-        background: #f0f4fa;
+        background: #e3eafc;
         color: #1976d2;
       }
       .custom-context-menu .submenu-arrow {
@@ -1102,7 +1102,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     document.head.appendChild(style);
   }
 
-  // Add CSS for tooltip table and type count
+  // Badge tooltip style
   if (!document.getElementById('badge-tooltip-style')) {
     const style = document.createElement('style');
     style.id = 'badge-tooltip-style';
@@ -1112,8 +1112,11 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
         pointer-events: none;
         max-width: 340px;
         line-height: 1.6;
-        background: #fff;
+        background: #f4f6fa;
         color: #222;
+        border: 1.5px solid #90a4ae;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        font-family: sans-serif;
       }
       .badge-tooltip div { margin-bottom: 2px; }
       .badge-tooltip .tooltip-table {

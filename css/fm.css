@@ -1,6 +1,7 @@
-/* Feature Model SVG Styles (moved from style.css) */
+/* Feature Model SVG Styles (Kandinsky-inspired, revised) */
 .main-svg {
     margin: auto;
+    background: #fff;
 }
 
 .node {
@@ -9,14 +10,27 @@
 }
 
 .node rect {
-  fill: #ebebff;
-  stroke: #888;
-  stroke-width: 1px;
+  fill: #e3f0fc;
+  stroke: #5e81ac;
+  stroke-width: 1.5px;
   transition: all 0.75s;
 }
 
+.node.abstract rect {
+  fill: #fffde7;
+  stroke: #5e81ac;
+}
+
+.node.dead rect {
+  fill: #ffd1d1;
+}
+
+.node.core rect {
+  fill: #b3cde0;
+}
+
 .node text {
-  fill: #222;
+  fill: #111;
   text-anchor: middle;
   user-select: none;
 }
@@ -26,21 +40,18 @@
 }
 .node.legend text {
   font-size: 0.75rem;
+  fill: #111 !important;
 }
 
 .edge {
   fill: none;
-  stroke: #888;
+  stroke: #111;
   stroke-width: 1.5px;
 }
 
 .abstract{
   font-style: italic;
 } 
-
-.abstract rect {
-  fill: #f5f5f5;
-}
 
 .core {
   text-decoration: underline;
@@ -50,26 +61,26 @@
   text-decoration: line-through;
 }
 
-.alt-group-arc {
-  fill: rgba(255,255,255);
-  stroke: #111;
-  stroke-width: 2;
-}
-
 .mandatory-marker {
   fill: #111;
   stroke: #111;
-  stroke-width: 1;
+  stroke-width: 1.5px;
 }
 
 .optional-marker {
   fill: #fff;
   stroke: #111;
-  stroke-width: 1;
+  stroke-width: 1.5px;
 }
 
 .or-group-arc {
-  fill: rgba(0,0,0);
+  fill: #fff;
+  stroke: #111;
+  stroke-width: 2;
+}
+
+.alt-group-arc {
+  fill: #111;
   stroke: #111;
   stroke-width: 2;
 }
@@ -90,14 +101,59 @@
 }
 
 .edge-false-optional {
-  stroke: #d32f2f;
-  /* stroke-dasharray: 6,3; */
+  stroke: #e63946;
 }
 .edge-false-optional-marker {
-  fill: #d32f2f;
-  stroke: #d32f2f;
+  fill: #e63946;
+  stroke: #e63946;
 }
 
 .optional-marker.false-optional {
-  stroke: #d32f2f;
+  stroke: #e63946;
+}
+
+#legend {
+  min-width: 220px;
+  background: #fff;
+  border: 1.5px solid #5e81ac;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  position: absolute;
+  z-index: 1000;
+  font-family: monospace;
+  user-select: none;
+  cursor: grab;
+}
+#legend.dragging {
+  cursor: grabbing;
+}
+#legend .legend-drag-handle {
+  background: #b3cde0;
+  color: #111;
+  border-bottom: 1px solid #5e81ac;
+  border-radius: 8px 8px 0 0;
+  padding: 6px 12px;
+  font-weight: bold;
+}
+#legend.dragging .legend-drag-handle {
+  background: #b3cde0;
+}
+
+#legend .legend-row-single[data-legend-type="base"] rect {
+  fill: #e3f0fc !important;
+  stroke: #5e81ac !important;
+}
+#legend .legend-row-single[data-legend-type="base"] text {
+  fill: #111 !important;
+}
+
+#legend .legend-row-single[data-legend-type="abstract"] rect {
+  fill: #fffde7 !important;
+  stroke: #5e81ac !important;
+}
+#legend .legend-row-single[data-legend-type="abstract"] text {
+  fill: #111 !important;
+}
+
+#legend .legend-content {
 } 

@@ -1,143 +1,5 @@
 /* Styles for Feature Model Editor v2 */
 
-.main-svg {
-  background: #fff;
-}
-
-.node {
-  cursor: pointer;
-  font-family: monospace;
-}
-
-.node rect {
-  fill: #ebebff;
-  stroke: #888;
-  stroke-width: 1px;
-  transition: all 0.75s;
-}
-
-.node text {
-  fill: #222;
-  text-anchor: middle;
-  user-select: none;
-}
-
-.node.legend {
-  cursor: default;
-}
-.node.legend text {
-  font-size: 0.75rem;
-}
-
-.node.legend text {
-  font-size: 0.75rem;
-}
-
-.edge {
-  fill: none;
-  stroke: #888;
-  stroke-width: 1.5px;
-}
-
-.abstract{
-  font-style: italic;
-} 
-
-.abstract rect {
-  fill: #f5f5f5;
-}
-
-.core {
-  text-decoration: underline;
-}
-
-
-.dead {
-  text-decoration: line-through;
-}
-
-.alt-group-arc {
-  fill: rgba(255,255,255);
-  stroke: #111;
-  stroke-width: 2;
-}
-
-.mandatory-marker {
-  fill: #111;
-  stroke: #111;
-  stroke-width: 1;
-}
-
-.optional-marker {
-  fill: #fff;
-  stroke: #111;
-  stroke-width: 1;
-}
-
-.or-group-arc {
-  fill: rgba(0,0,0);
-  stroke: #111;
-  stroke-width: 2;
-}
-
-.grabbable {
-  cursor: grab;
-}
-.grabbed {
-  cursor: grabbing;
-}
-
-.node-dead {
-  text-decoration: line-through;
-}
-
-.node-core {
-  text-decoration: underline;
-}
-
-.edge-false-optional {
-  stroke: #d32f2f;
-  /* stroke-dasharray: 6,3; */
-}
-.edge-false-optional-marker {
-  fill: #d32f2f;
-  stroke: #d32f2f;
-}
-
-.optional-marker.false-optional {
-  stroke: #d32f2f;
-}
-
-#legend {
-  min-width: 220px;
-  background: #f8f8ff;
-  border: 1.5px solid #888;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  position: absolute;
-  z-index: 1000;
-  font-family: monospace;
-  user-select: none;
-  cursor: grab;
-}
-#legend.dragging {
-  cursor: grabbing;
-}
-#legend .legend-drag-handle {
-  background: #e0e0f0;
-  border-bottom: 1px solid #bbb;
-  border-radius: 8px 8px 0 0;
-  padding: 6px 12px;
-  font-weight: bold;
-}
-#legend.dragging .legend-drag-handle {
-  background: #d0d0e0;
-}
-
-#legend .legend-content {
-/*  padding: 8px 12px 0 0;*/
-}
-
 #legend .legend-row{
   display: flex;
   align-items: center;
@@ -152,7 +14,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-
 }
 
 .legend-label.legend {
@@ -189,7 +50,6 @@
   vertical-align: middle;
   min-width: 40px;
 }
-
 
 #legend .legend-col-label {
   flex: 1 1 67%;
