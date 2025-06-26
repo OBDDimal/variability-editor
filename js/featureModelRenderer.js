@@ -1,6 +1,5 @@
 import * as d3 from 'd3';
 import { FeatureNode } from './featureNode.js';
-import isEnglish from 'is-english';
 
 let direction = 'v'; // 'v' = vertical, 'h' = horizontal
 const rectWidth = 100;
@@ -8,6 +7,10 @@ const rectHeight = 30;
 
 // Track collapsed state by node path
 let collapsedMap = {};
+// Track hidden state by node path
+let hiddenMap = {};
+// Track hidden siblings info for indicators
+let hiddenSiblingsMap = {};
 let levelDistance = 100;
 let resizeListenerSet = false;
 let siblingDistance = 25;
@@ -15,6 +18,9 @@ let currentTransform = d3.zoomIdentity;
 let isFirstRender = true;
 let initialTransformGlobal = null;
 let forceInitialView = false;
+
+// Theme management
+let currentTheme = 'kandinsky'; // 'kandinsky', 'nge', or 'featureide'
 
 function getNodePath(node) {
   let path = [];
@@ -34,18 +40,18 @@ function setupZoom(svg, svgContent, width, height) {
       // Only allow wheel for zoom, and left mouse for pan, but not if target is a node
       return (
         (event.type === 'wheel' || (event.type === 'mousedown' && event.button === 0)) &&
-        !event.target.closest('.node')
+        !event.target.closest('.fme-node')
       );
     })
     .on('start', function() {
-      svg.classed('grabbed', true).classed('grabbable', false);
+      svg.classed('fme-grabbed', true).classed('fme-grabbable', false);
     })
     .on('zoom', (event) => {
       svgContent.attr('transform', event.transform);
       currentTransform = event.transform;
     })
     .on('end', function() {
-      svg.classed('grabbed', false).classed('grabbable', true);
+      svg.classed('fme-grabbed', false).classed('fme-grabbable', true);
     });
   svg.call(zoom).on('dblclick.zoom', null);
   // Do NOT re-apply currentTransform here; let D3 manage it after user interaction
@@ -72,7 +78,7 @@ function zoomToFit(svg, svgContent, width, height) {
 }
 
 function positionLegendNextToTreeBBox(containerId) {
-  const legend = document.getElementById('legend');
+  const legend = document.getElementById('fme-legend');
   if (!legend) return;
   if (legend.dataset.userMoved === 'true') return;
   const container = document.getElementById(containerId);
@@ -102,23 +108,23 @@ function positionLegendNextToTreeBBox(containerId) {
 }
 
 function ensureLegend() {
-  if (document.getElementById('legend')) return;
+  if (document.getElementById('fme-legend')) return;
   const legend = document.createElement('div');
-  legend.id = 'legend';
+  legend.id = 'fme-legend';
   legend.innerHTML = `
-    <div class="legend-drag-handle">Legend</div>
-    <div class="legend-content">
-      <div class="legend-row-single" data-legend-type="base"><svg width="160" height="40"><g class="node legend"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Feature</text></g></svg></div>
-      <div class="legend-row-single" data-legend-type="abstract"><svg width="160" height="40"><g class="node legend abstract"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Abstract Feature</text></g></svg></div>
-      <div class="legend-row-single" data-legend-type="mandatory"><svg width="160" height="40"><g class="node legend"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><circle cx="80" cy="10" r="5" class="mandatory-marker"/><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Mandatory Feature</text></g></svg></div>
-      <div class="legend-row-single" data-legend-type="optional"><svg width="160" height="40"><g class="node legend"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><circle cx="80" cy="10" r="5" class="optional-marker"/><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Optional Feature</text></g></svg></div>
-      <div class="legend-sep"></div>
-      <div class="legend-row-single" data-legend-type="core"><svg width="160" height="40"><g class="node legend core"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Core Feature</text></g></svg></div>
-      <div class="legend-row-single" data-legend-type="dead"><svg width="160" height="40"><g class="node legend dead"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Dead Feature</text></g></svg></div>
-      <div class="legend-sep"></div>
-      <div class="legend-row-double" data-legend-type="alt-group"><div class="legend-col-icon"><svg width="40" height="40"><path d="M20,10 L3,30 Z M20,10 L37,30 Z" class = "edge"/><path d="M20,10 L8,25 A20,40 0 0,0 32,25 Z" class = "alt-group-arc" /></svg></div><div class = "legend-col-label">Alternative Group</div></div>
-      <div class="legend-row-double" data-legend-type="or-group"><div class="legend-col-icon"><svg width="40" height="40"><path d="M20,10 L3,30 Z M20,10 L37,30 Z" class = "edge"/><path d="M20,10 L8,25 A20,40 0 0,0 32,25 Z" class = "or-group-arc" /></svg></div><div class = "legend-col-label">Or Group</div></div>
-      <div class="legend-row-double" data-legend-type="false-optional"><div class="legend-col-icon"><svg width="32" height="18"><line x1="4" y1="9" x2="22" y2="9" stroke="#d32f2f" stroke-width="2"/><circle cx="26" cy="9" r="5" fill="#fff" stroke="#d32f2f" stroke-width="2"/></svg></div><div class="legend-col-label">False-Optional</div></div>
+    <div class="fme-legend-drag-handle">Legend</div>
+    <div class="fme-legend-content">
+      <div class="fme-legend-row-single" data-legend-type="base"><svg width="160" height="40"><g class="fme-node fme-legend"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Feature</text></g></svg></div>
+      <div class="fme-legend-row-single" data-legend-type="abstract"><svg width="160" height="40"><g class="fme-node fme-legend fme-abstract"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Abstract Feature</text></g></svg></div>
+      <div class="fme-legend-row-single" data-legend-type="mandatory"><svg width="160" height="40"><g class="fme-node fme-legend"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><circle cx="80" cy="10" r="5" class="fme-mandatory-marker"/><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Mandatory Feature</text></g></svg></div>
+      <div class="fme-legend-row-single" data-legend-type="optional"><svg width="160" height="40"><g class="fme-node fme-legend"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><circle cx="80" cy="10" r="5" class="fme-optional-marker"/><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Optional Feature</text></g></svg></div>
+      <div class="fme-legend-sep"></div>
+      <div class="fme-legend-row-single" data-legend-type="core"><svg width="160" height="40"><g class="fme-node fme-legend fme-core"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Core Feature</text></g></svg></div>
+      <div class="fme-legend-row-single" data-legend-type="dead"><svg width="160" height="40"><g class="fme-node fme-legend fme-dead"><rect width="150" height="24" x = "5" y="10" rx="6" ry="6"></rect><text dx = "80" dy="27.5" text-anchor="middle" font-family="inherit" class="">Dead Feature</text></g></svg></div>
+      <div class="fme-legend-sep"></div>
+      <div class="fme-legend-row-double" data-legend-type="alt-group"><div class="fme-legend-col-icon"><svg width="40" height="40"><path d="M20,10 L3,30 Z M20,10 L37,30 Z" class = "fme-edge"/><path d="M20,10 L8,25 A20,40 0 0,0 32,25 Z" class = "fme-alt-group-arc" /></svg></div><div class = "fme-legend-col-label">Alternative Group</div></div>
+      <div class="fme-legend-row-double" data-legend-type="or-group"><div class="fme-legend-col-icon"><svg width="40" height="40"><path d="M20,10 L3,30 Z M20,10 L37,30 Z" class = "fme-edge"/><path d="M20,10 L8,25 A20,40 0 0,0 32,25 Z" class = "fme-or-group-arc" /></svg></div><div class = "fme-legend-col-label">Or Group</div></div>
+      <div class="fme-legend-row-double" data-legend-type="false-optional"><div class="fme-legend-col-icon"><svg width="32" height="18"><line x1="4" y1="9" x2="22" y2="9" stroke="#d32f2f" stroke-width="2"/><circle cx="26" cy="9" r="5" fill="#fff" stroke="#d32f2f" stroke-width="2"/></svg></div><div class="fme-legend-col-label">False-Optional</div></div>
     </div>
   `;
   document.body.appendChild(legend);
@@ -131,7 +137,7 @@ function ensureLegend() {
     isDragging = true;
     offsetX = e.clientX - legend.offsetLeft;
     offsetY = e.clientY - legend.offsetTop;
-    legend.classList.add('dragging');
+    legend.classList.add('fme-dragging');
     document.body.style.userSelect = 'none';
   });
   document.addEventListener('mousemove', (e) => {
@@ -142,7 +148,7 @@ function ensureLegend() {
   });
   document.addEventListener('mouseup', () => {
     isDragging = false;
-    legend.classList.remove('dragging');
+    legend.classList.remove('fme-dragging');
     document.body.style.userSelect = '';
   });
 }
@@ -173,15 +179,7 @@ function updateLegendVisibility(root) {
     if (node.children) node.children.forEach(scan);
   }
   scan(root);
-  // Show/hide base legend item
-  const baseRow = document.querySelector('#legend [data-legend-type="base"]');
-  if (baseRow) {
-    if (visibleNodeCount === 1) {
-      baseRow.style.display = '';
-    } else {
-      baseRow.style.display = 'none';
-    }
-  }
+
   // Map legend types to present keys
   const legendMap = {
     'mandatory': 'mandatory',
@@ -193,18 +191,47 @@ function updateLegendVisibility(root) {
     'alt-group': 'xor',
     'false-optional': 'false-optional'
   };
-  document.querySelectorAll('#legend [data-legend-type]').forEach(row => {
+
+  // Determine which legend entries (except base) would be visible
+  let nonBaseVisible = 0;
+  document.querySelectorAll('#fme-legend [data-legend-type]').forEach(row => {
+    const type = row.getAttribute('data-legend-type');
+    if (type === 'base') return;
+    const key = legendMap[type];
+    if (key && present[key]) {
+      nonBaseVisible++;
+    }
+  });
+
+  // Show/hide base legend item
+  const baseRow = document.querySelector('#fme-legend [data-legend-type="base"]');
+  if (baseRow) {
+    if (nonBaseVisible === 0) {
+      baseRow.style.display = '';
+    } else {
+      baseRow.style.display = 'none';
+    }
+  }
+
+  // Show/hide other legend entries
+  document.querySelectorAll('#fme-legend [data-legend-type]').forEach(row => {
     const type = row.getAttribute('data-legend-type');
     if (type === 'base') return; // already handled
     const key = legendMap[type];
     if (key && present[key]) {
-      row.style.display = '';
+      // Hide mandatory if only root node is visible
+      if (type === 'mandatory' && visibleNodeCount === 1) {
+        row.style.display = 'none';
+      } else {
+        row.style.display = '';
+      }
     } else {
       row.style.display = 'none';
     }
   });
+
   // Hide legend-sep divs that do not separate two visible legend entries
-  document.querySelectorAll('#legend .legend-sep').forEach(sep => {
+  document.querySelectorAll('#fme-legend .fme-legend-sep').forEach(sep => {
     // Find previous and next visible legend rows
     let prev = sep.previousElementSibling;
     while (prev && (prev.style.display === 'none' || !prev.matches('[data-legend-type]'))) prev = prev.previousElementSibling;
@@ -216,10 +243,10 @@ function updateLegendVisibility(root) {
       sep.style.display = 'none';
     }
   });
-  // Hide any .legend-sep that immediately follows another visible .legend-sep
+  // Hide any .fme-legend-sep that immediately follows another visible .fme-legend-sep
   let lastWasSep = false;
-  document.querySelectorAll('#legend .legend-content > *').forEach(row => {
-    if (row.classList.contains('legend-sep') && row.style.display !== 'none') {
+  document.querySelectorAll('#fme-legend .fme-legend-content > *').forEach(row => {
+    if (row.classList.contains('fme-legend-sep') && row.style.display !== 'none') {
       if (lastWasSep) {
         row.style.display = 'none';
       }
@@ -280,7 +307,15 @@ function showContextMenu(event, actions) {
           }
         })
         .html(function(a2) {
-          return a2.label + (a2.submenu ? '<span class="submenu-arrow">&#9654;</span>' : '');
+          let content = '';
+          if (a2.checked !== undefined) {
+            content += `<span class="menu-checkbox">${a2.checked ? '☑' : '☐'}</span> `;
+          }
+          content += a2.label;
+          if (a2.submenu) {
+            content += '<span class="submenu-arrow">&#9654;</span>';
+          }
+          return content;
         });
       // Render submenu as child div if present
       if (a.submenu && Array.isArray(a.submenu)) {
@@ -368,6 +403,8 @@ function showContextMenu(event, actions) {
 function resetView(svg, svgContent, width, height, containerId, shouldUncollapse = false, options = {}) {
   if (shouldUncollapse) {
     collapsedMap = {};
+    hiddenMap = {};
+    hiddenSiblingsMap = {};
     forceInitialView = true;
     isFirstRender = true;
     renderFeatureModel(containerId, options);
@@ -382,7 +419,7 @@ function resetView(svg, svgContent, width, height, containerId, shouldUncollapse
 // --- Legend Auto-Position Utility ---
 function positionLegendAuto(containerId) {
   setTimeout(() => {
-    const legend = document.getElementById('legend');
+    const legend = document.getElementById('fme-legend');
     if (legend) {
       positionLegendNextToTreeBBox(containerId);
     }
@@ -392,7 +429,7 @@ function positionLegendAuto(containerId) {
 // --- Export Utilities ---
 function exportAsSVG() {
   // Get the main SVG
-  const svgElem = document.querySelector('.main-svg');
+  const svgElem = document.querySelector('.fme-main-svg');
   if (!svgElem) {
     alert('No SVG found to export.');
     return;
@@ -403,8 +440,8 @@ function exportAsSVG() {
   fetch('css/fm.css')
     .then(response => response.text())
     .then(css => {
-      // Remove everything before .main-svg
-      const idx = css.indexOf('.main-svg');
+      // Remove everything before .fme-main-svg
+      const idx = css.indexOf('.fme-main-svg');
       if (idx !== -1) css = css.slice(idx);
       // Sanitize CSS: remove comments, newlines, carriage returns, tabs, and excessive whitespace
       css = css.replace(/\/\*[^*]*\*+([^/*][^*]*\*+)*\//g, ' '); // remove /* ... */ comments
@@ -420,7 +457,7 @@ function exportAsSVG() {
         g2.removeAttribute('transform');
       }
       // Find all node rects
-      const nodeRects = Array.from(svgElem.querySelectorAll('g.node rect'));
+      const nodeRects = Array.from(svgElem.querySelectorAll('g.fme-node rect'));
       if (nodeRects.length === 0) {
         alert('No nodes found in SVG.');
         return;
@@ -525,7 +562,32 @@ function getDisplayText(name) {
   return name;
 }
 
+// Theme toggle function
+function toggleTheme(nextTheme) {
+  if (nextTheme) {
+    currentTheme = nextTheme;
+  } else {
+    // Cycle through themes
+    currentTheme = currentTheme === 'kandinsky' ? 'nge' : (currentTheme === 'nge' ? 'featureide' : 'kandinsky');
+  }
+  const body = document.body;
+  body.classList.remove('fme-nge-theme', 'fme-featureide-theme');
+  if (currentTheme === 'nge') {
+    body.classList.add('fme-nge-theme');
+  } else if (currentTheme === 'featureide') {
+    body.classList.add('fme-featureide-theme');
+  }
+  // Re-render to apply theme changes
+  if (window.currentFeatureModelOptions) {
+    renderFeatureModel(window.currentFeatureModelContainer, window.currentFeatureModelOptions);
+  }
+}
+
 export function renderFeatureModel(containerId = 'app', options = {}) {
+  // Store current options globally for theme re-rendering
+  window.currentFeatureModelOptions = options;
+  window.currentFeatureModelContainer = containerId;
+  
   ensureLegend();
   // Save current transform if SVG exists
   const oldSvg = d3.select(`#${containerId} svg`);
@@ -582,8 +644,8 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     .append('svg')
     .attr('width', width)
     .attr('height', height)
-    .classed('main-svg', true)
-    .classed('grabbable', true);
+    .classed('fme-main-svg', true)
+    .classed('fme-grabbable', true);
 
   const svgContent = svg.append('g').attr('id', 'draggable');
 
@@ -640,12 +702,25 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     }
   }
 
+  // Build hierarchy with hidden filtering
+  function filterHidden(node) {
+    if (hiddenMap[getNodePath(node)]) {
+      return null; // Remove this node entirely
+    } else if (node.children) {
+      node.children = node.children.map(filterHidden).filter(Boolean);
+    }
+    return node;
+  }
+
   // --- Auto-collapse all but first two levels on initial render ---
   if (isFirstRender) {
     collapsedMap = {};
+    hiddenMap = {};
     autoCollapseDeeperThan(root, 1); // keep first two levels expanded
   }
   filterCollapsed(root);
+  root = filterHidden(root);
+  if (!root) return; // All nodes hidden
   treeLayout(root);
 
   // Ensure minimum siblingDistance between all nodes at the same level (not just siblings)
@@ -709,13 +784,13 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
   }
 
   // Draw straight lines for links
-  svgContent.selectAll('line.link')
+  svgContent.selectAll('line.fme-edge')
     .data(root.links())
     .enter()
     .append('line')
     .attr('class', d => {
-      let cls = 'edge';
-      if (d.target.data.attr && d.target.data.attr.includes('false-optional')) cls += ' edge-false-optional';
+      let cls = 'fme-edge';
+      if (d.target.data.attr && d.target.data.attr.includes('false-optional')) cls += ' fme-edge-false-optional';
       return cls;
     })
     .attr('x1', d => direction === 'v' ? d.source.x : d.source.x + (d.source._rectWidth || rectWidth) / 2)
@@ -724,21 +799,21 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     .attr('y2', d => direction === 'v' ? d.target.y - rectHeight / 2 : d.target.y);
 
   // Add red marker for false-optional edges
-  svgContent.selectAll('circle.edge-false-optional-marker')
+  svgContent.selectAll('circle.fme-edge-false-optional-marker')
     .data(root.links().filter(d => d.target.data.attr && d.target.data.attr.includes('false-optional')))
     .enter()
     .append('circle')
-    .attr('class', 'edge-false-optional-marker')
+    .attr('class', 'fme-edge-false-optional-marker')
     .attr('r', 6)
     .attr('cx', d => direction === 'v' ? d.target.x + rectWidth / 2 : d.target.x + rectWidth / 2 - rectWidth / 2)
     .attr('cy', d => direction === 'v' ? d.target.y + rectHeight / 2 - rectHeight / 2 : d.target.y + rectHeight / 2);
 
   // Draw nodes (rects and text)
-  const node = svgContent.selectAll('g.node')
+  const node = svgContent.selectAll('g.fme-node')
     .data(root.descendants())
     .enter()
     .append('g')
-    .attr('class', d => `node${d.data.abstract ? ' abstract' : ''}`)
+    .attr('class', d => `fme-node${d.data.abstract ? ' fme-abstract' : ''}`)
     .attr('transform', d => `translate(${d.x},${d.y})`)
     .on('click', function(event, d) {
       event.stopPropagation();
@@ -802,10 +877,16 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
           },
           { label: 'Collapse all siblings to the left', action: () => {
               if (parentModelNode && siblings.length > 1 && idx > 0) {
-                for (let i = 0; i < idx; ++i) {
-                  const sibPath = parentPath + '/' + siblings[i].name;
-                  collapsedMap[sibPath] = true;
+                // Collect all indices to the left, including already hidden
+                let indicesToHide = [];
+                for (let i = 0; i < idx; ++i) indicesToHide.push(i);
+                // Merge with any already hidden to the left
+                if (hiddenSiblingsMap[parentPath]) {
+                  hiddenSiblingsMap[parentPath].forEach(group => {
+                    group.forEach(i => { if (i < idx && !indicesToHide.includes(i)) indicesToHide.push(i); });
+                  });
                 }
+                setHiddenSiblingsGroup(parentPath, siblings, indicesToHide);
                 d3.selectAll('.custom-context-menu').remove();
                 renderFeatureModel(containerId, options);
               }
@@ -813,13 +894,71 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
           },
           { label: 'Collapse all siblings to the right', action: () => {
               if (parentModelNode && siblings.length > 1 && idx >= 0 && idx < siblings.length - 1) {
-                for (let i = idx + 1; i < siblings.length; ++i) {
-                  const sibPath = parentPath + '/' + siblings[i].name;
-                  collapsedMap[sibPath] = true;
+                let indicesToHide = [];
+                for (let i = idx + 1; i < siblings.length; ++i) indicesToHide.push(i);
+                if (hiddenSiblingsMap[parentPath]) {
+                  hiddenSiblingsMap[parentPath].forEach(group => {
+                    group.forEach(i => { if (i > idx && !indicesToHide.includes(i)) indicesToHide.push(i); });
+                  });
                 }
+                setHiddenSiblingsGroup(parentPath, siblings, indicesToHide);
                 d3.selectAll('.custom-context-menu').remove();
                 renderFeatureModel(containerId, options);
               }
+            }
+          },
+          { separator: true },
+          { label: 'Hide all siblings to the left', action: () => {
+              if (parentModelNode && siblings.length > 1 && idx > 0) {
+                // Collect all indices to the left, including already hidden
+                let indicesToHide = [];
+                for (let i = 0; i < idx; ++i) indicesToHide.push(i);
+                // Merge with any already hidden to the left
+                if (hiddenSiblingsMap[parentPath]) {
+                  hiddenSiblingsMap[parentPath].forEach(group => {
+                    group.forEach(i => { if (i < idx && !indicesToHide.includes(i)) indicesToHide.push(i); });
+                  });
+                }
+                setHiddenSiblingsGroup(parentPath, siblings, indicesToHide);
+                d3.selectAll('.custom-context-menu').remove();
+                renderFeatureModel(containerId, options);
+              }
+            }
+          },
+          { label: 'Hide all siblings to the right', action: () => {
+              if (parentModelNode && siblings.length > 1 && idx >= 0 && idx < siblings.length - 1) {
+                let indicesToHide = [];
+                for (let i = idx + 1; i < siblings.length; ++i) indicesToHide.push(i);
+                if (hiddenSiblingsMap[parentPath]) {
+                  hiddenSiblingsMap[parentPath].forEach(group => {
+                    group.forEach(i => { if (i > idx && !indicesToHide.includes(i)) indicesToHide.push(i); });
+                  });
+                }
+                setHiddenSiblingsGroup(parentPath, siblings, indicesToHide);
+                d3.selectAll('.custom-context-menu').remove();
+                renderFeatureModel(containerId, options);
+              }
+            }
+          },
+          { separator: true },
+          { label: 'Hide this node', action: () => {
+              // Find adjacent groups and merge
+              if (parentModelNode && siblings.length > 1 && idx >= 0) {
+                let indicesToHide = [idx];
+                // Merge with any adjacent groups
+                if (hiddenSiblingsMap[parentPath]) {
+                  hiddenSiblingsMap[parentPath].forEach(group => {
+                    if (group.includes(idx - 1) || group.includes(idx + 1) || group.includes(idx)) {
+                      group.forEach(i => { if (!indicesToHide.includes(i)) indicesToHide.push(i); });
+                    }
+                  });
+                }
+                setHiddenSiblingsGroup(parentPath, siblings, indicesToHide);
+              } else {
+                hiddenMap[path] = true;
+              }
+              d3.selectAll('.custom-context-menu').remove();
+              renderFeatureModel(containerId, options);
             }
           }
         ]}
@@ -851,8 +990,8 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     .attr('class', d => {
       const attr = d.data.attr || [];
       let cls = '';
-      if (attr.includes('dead')) cls += ' node-dead';
-      if (attr.includes('core')) cls += ' node-core';
+      if (attr.includes('dead')) cls += ' fme-node-dead';
+      if (attr.includes('core')) cls += ' fme-node-core';
       return cls.trim();
     })
     .text(d => d._displayText);
@@ -868,22 +1007,22 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
       drawGroupArc(parent, parent.children, allOr ? 'or' : 'xor', direction, rectWidth, rectHeight, svgContent);
     } else if (allMandatoryOptional) {
       const links = parent.children.map(child => ({ source: parent, target: child }));
-      svgContent.selectAll('circle.mandatory-marker-' + parent.data.name)
+      svgContent.selectAll('circle.fme-mandatory-marker-' + parent.data.name)
         .data(links.filter(d => d.target.data.type === 'mandatory'))
         .enter()
         .append('circle')
-        .attr('class', 'mandatory-marker')
+        .attr('class', 'fme-mandatory-marker')
         .attr('r', 6)
         .attr('cx', d => direction === 'v' ? d.target.x : d.target.x - (d.target._rectWidth || rectWidth) / 2)
         .attr('cy', d => direction === 'v' ? d.target.y - (d.target._rectHeight || rectHeight) / 2 : d.target.y)
         .raise();
-      svgContent.selectAll('circle.optional-marker-' + parent.data.name)
+      svgContent.selectAll('circle.fme-optional-marker-' + parent.data.name)
         .data(links.filter(d => d.target.data.type === 'optional'))
         .enter()
         .append('circle')
         .attr('class', d => {
-          let cls = 'optional-marker';
-          if (d.target.data.attr && d.target.data.attr.includes('false-optional')) cls += ' false-optional';
+          let cls = 'fme-optional-marker';
+          if (d.target.data.attr && d.target.data.attr.includes('false-optional')) cls += ' fme-false-optional';
           return cls;
         })
         .attr('r', 6)
@@ -937,6 +1076,8 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
         const badgeWidth = 32, badgeHeight = 20;
         const badgeGroup = svgContent.append('g')
           .attr('transform', `translate(${node.x},${node.y + rectHeight / 2 + 16})`)
+          .attr('class', 'fme-badge')
+          .attr('data-node-name', node.data.name)
           .style('cursor', 'pointer')
           .on('mouseenter', function(event) {
             d3.selectAll('.badge-tooltip').remove();
@@ -1000,6 +1141,157 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     }
   });
 
+  // Add hidden siblings indicators
+  root.descendants().forEach(node => {
+    const path = getNodePath(node);
+    const featureNode = getModelNodeByPath(options.model, path);
+    if (featureNode && featureNode.children && featureNode.children.length > 1) {
+      const siblings = featureNode.children;
+      const groups = (hiddenSiblingsMap[path] || []);
+      groups.forEach((group, groupIdx) => {
+        if (!group.length) return;
+        const sorted = group.slice().sort((a, b) => a - b);
+        const firstIdx = sorted[0];
+        const lastIdx = sorted[sorted.length - 1];
+        // Determine indicator type
+        let indicatorType = 'diamond';
+        if (firstIdx === 0) indicatorType = 'left';
+        else if (lastIdx === siblings.length - 1) indicatorType = 'right';
+        // Find anchor node for indicator position
+        let anchor = null;
+        if (indicatorType === 'left') {
+          // First visible node after group
+          anchor = node.children && node.children.length > 0 ? node.children[0] : node;
+        } else if (indicatorType === 'right') {
+          anchor = node.children && node.children.length > 0 ? node.children[node.children.length - 1] : node;
+        } else {
+          // Find visible node before and after group
+          let before = null, after = null;
+          for (let i = firstIdx - 1; i >= 0; i--) {
+            const name = siblings[i].name;
+            before = (node.children || []).find(vc => vc.data.name === name);
+            if (before) break;
+          }
+          for (let i = lastIdx + 1; i < siblings.length; i++) {
+            const name = siblings[i].name;
+            after = (node.children || []).find(vc => vc.data.name === name);
+            if (after) break;
+          }
+          if (before && after) {
+            anchor = { x: (before.x + after.x) / 2, y: before.y };
+          } else if (before) {
+            anchor = { x: before.x + (before._rectWidth || rectWidth) / 2 + 15, y: before.y };
+          } else if (after) {
+            anchor = { x: after.x - (after._rectWidth || rectWidth) / 2 - 15, y: after.y };
+          } else {
+            anchor = node;
+          }
+        }
+        // Draw indicator
+        let indicator;
+        if (indicatorType === 'left') {
+          const indicatorX = anchor.x - (anchor._rectWidth || rectWidth) / 2 - 15;
+          const indicatorY = anchor.y;
+          const base = rectHeight;
+          indicator = svgContent.append('g')
+            .attr('class', 'fme-hidden-siblings-indicator')
+            .attr('data-parent-path', path)
+            .attr('data-group-idx', groupIdx)
+            .attr('data-side', 'left')
+            .attr('transform', `translate(${indicatorX},${indicatorY})`)
+            .style('cursor', 'pointer')
+            .on('click', function() {
+              group.forEach(idx => {
+                const sibPath = path + '/' + siblings[idx].name;
+                delete hiddenMap[sibPath];
+              });
+              hiddenSiblingsMap[path] = (hiddenSiblingsMap[path] || []).filter((g, i) => i !== groupIdx);
+              renderFeatureModel(containerId, options);
+            });
+          indicator.append('polygon')
+            .attr('points', `${-base},0 0,${-rectHeight/2} 0,${rectHeight/2}`)
+            .attr('fill', '#fff')
+            .attr('stroke', '#5e81ac')
+            .attr('stroke-width', 1.5);
+          indicator.append('text')
+            .attr('x', -base/2)
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.35em')
+            .attr('fill', '#111')
+            .attr('font-size', '10px')
+            .attr('font-family', 'monospace')
+            .attr('font-weight', 'bold')
+            .text(group.length > 9 ? '9+' : group.length);
+        } else if (indicatorType === 'right') {
+          const indicatorX = anchor.x + (anchor._rectWidth || rectWidth) / 2 + 15;
+          const indicatorY = anchor.y;
+          const base = rectHeight;
+          indicator = svgContent.append('g')
+            .attr('class', 'fme-hidden-siblings-indicator')
+            .attr('data-parent-path', path)
+            .attr('data-group-idx', groupIdx)
+            .attr('data-side', 'right')
+            .attr('transform', `translate(${indicatorX},${indicatorY})`)
+            .style('cursor', 'pointer')
+            .on('click', function() {
+              group.forEach(idx => {
+                const sibPath = path + '/' + siblings[idx].name;
+                delete hiddenMap[sibPath];
+              });
+              hiddenSiblingsMap[path] = (hiddenSiblingsMap[path] || []).filter((g, i) => i !== groupIdx);
+              renderFeatureModel(containerId, options);
+            });
+          indicator.append('polygon')
+            .attr('points', `${base},0 0,${-rectHeight/2} 0,${rectHeight/2}`)
+            .attr('fill', '#fff')
+            .attr('stroke', '#5e81ac')
+            .attr('stroke-width', 1.5);
+          indicator.append('text')
+            .attr('x', base/2)
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.35em')
+            .attr('fill', '#111')
+            .attr('font-size', '10px')
+            .attr('font-family', 'monospace')
+            .attr('font-weight', 'bold')
+            .text(group.length > 9 ? '9+' : group.length);
+        } else {
+          // diamond
+          const diamondSize = 12;
+          const indicatorX = anchor.x;
+          const indicatorY = anchor.y;
+          indicator = svgContent.append('g')
+            .attr('class', 'fme-hidden-between-indicator')
+            .attr('data-parent-path', path)
+            .attr('data-group-idx', groupIdx)
+            .attr('transform', `translate(${indicatorX},${indicatorY})`)
+            .style('cursor', 'pointer')
+            .on('click', function() {
+              group.forEach(idx => {
+                const sibPath = path + '/' + siblings[idx].name;
+                delete hiddenMap[sibPath];
+              });
+              hiddenSiblingsMap[path] = (hiddenSiblingsMap[path] || []).filter((g, i) => i !== groupIdx);
+              renderFeatureModel(containerId, options);
+            });
+          indicator.append('polygon')
+            .attr('points', `0,${-diamondSize} ${diamondSize},0 0,${diamondSize} ${-diamondSize},0`)
+            .attr('fill', '#fff')
+            .attr('stroke', '#5e81ac')
+            .attr('stroke-width', 1.5);
+          indicator.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.35em')
+            .attr('fill', '#111')
+            .attr('font-size', '9px')
+            .attr('font-family', 'monospace')
+            .attr('font-weight', 'bold')
+            .text(group.length > 9 ? '9+' : group.length);
+        }
+      });
+    }
+  });
+
   // After rendering, center the root node in the SVG viewport on first render
   const zoom = setupZoom(svg, svgContent, width, height);
   if (isFirstRender || forceInitialView) {
@@ -1011,7 +1303,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     initialTransformGlobal = initialTransform;
     svg.call(zoom.transform, initialTransform);
     // Reset legend to initial position
-    const legend = document.getElementById('legend');
+    const legend = document.getElementById('fme-legend');
     if (legend) {
       delete legend.dataset.userMoved;
       legend.style.left = '';
@@ -1084,6 +1376,12 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
         background: #e3eafc;
         color: #1976d2;
       }
+      .custom-context-menu .menu-checkbox {
+        margin-right: 8px;
+        font-size: 14px;
+        color: #1976d2;
+        font-weight: bold;
+      }
       .custom-context-menu .submenu-arrow {
         margin-left: auto;
         color: #1976d2;
@@ -1153,11 +1451,50 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
   positionLegendAuto(containerId);
   setTimeout(() => { updateLegendVisibility(root); }, 0);
 
+  // --- Store model and collapsedMap for API/demo use ---
+  if (typeof window !== 'undefined') {
+    window.FME = window.FME || {};
+    window.FME.__featureModelRoot = featureModelRoot;
+    window.FME.__collapsedMap = { ...collapsedMap };
+    window.FME.__hiddenMap = { ...hiddenMap };
+    window.FME.__hiddenSiblingsMap = { ...hiddenSiblingsMap };
+  }
+
   // --- Add context menu to SVG surface ---
   svg.on('contextmenu', function(event) {
-    if (event.target.closest('g.node')) return;
+    if (event.target.closest('g.fme-node')) return;
     const actions = [
       { label: 'Reset view', action: () => { resetView(svg, svgContent, width, height, containerId, true, options); } },
+      { separator: true },
+      { label: 'Theme', submenu: [
+        {
+          label: 'FeatureIDE',
+          action: () => {
+            if (currentTheme !== 'featureide') {
+              toggleTheme('featureide');
+            }
+          },
+          checked: currentTheme === 'featureide'
+        },
+        {
+          label: 'Neon Genesis Evangelion',
+          action: () => {
+            if (currentTheme !== 'nge') {
+              toggleTheme('nge');
+            }
+          },
+          checked: currentTheme === 'nge'
+        },
+        {
+          label: 'Kandinsky-inspired',
+          action: () => {
+            if (currentTheme !== 'kandinsky') {
+              toggleTheme('kandinsky');
+            }
+          },
+          checked: currentTheme === 'kandinsky'
+        }
+      ] },
       { separator: true },
       { label: 'Export as', submenu: [
         { label: 'SVG', action: () => exportAsSVG() },
@@ -1176,7 +1513,7 @@ function drawGroupArc(parent, group, type, direction, rectWidth, rectHeight, svg
   const { cx, cy, r, startAngle, endAngle } = getArcAngles(parent, group, direction, rectWidth, rectHeight);
   const pathData = describeFilledArc(cx, cy, r, startAngle, endAngle);
   svgContent.append('path')
-    .attr('class', type === 'or' ? 'or-group-arc' : 'alt-group-arc')
+    .attr('class', type === 'or' ? 'fme-or-group-arc' : 'fme-alt-group-arc')
     .attr('d', pathData);
 }
 
@@ -1284,7 +1621,8 @@ export function FeatureModelRenderer(options = {}) {
 
 // Attach to window for global usage if not running as a module
 if (typeof window !== 'undefined') {
-  window.FeatureModelRenderer = FeatureModelRenderer;
+  window.FME = window.FME || {};
+  window.FME.FeatureModelRenderer = FeatureModelRenderer;
 }
 
 // --- Rename input overlay logic ---
@@ -1296,7 +1634,7 @@ function showRenameInput(d, modelNode, siblings, idx, containerId, options) {
   // Find SVG rect element for this node
   const svg = document.querySelector(`#${containerId} svg`);
   // Find the node's group element
-  const nodeG = Array.from(svg.querySelectorAll('g.node')).find(g => {
+  const nodeG = Array.from(svg.querySelectorAll('g.fme-node')).find(g => {
     const text = g.querySelector('text');
     return text && text.textContent === d._displayText;
   });
@@ -1335,6 +1673,11 @@ function showRenameInput(d, modelNode, siblings, idx, containerId, options) {
     return siblings.every((s, i) => i === idx || s.name !== name);
   }
 
+  // Remove input utility
+  function removeInput() {
+    if (input.parentNode) input.parentNode.removeChild(input);
+  }
+
   // Handle key events
   input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
@@ -1351,14 +1694,203 @@ function showRenameInput(d, modelNode, siblings, idx, containerId, options) {
       }
       // Commit rename
       modelNode.name = newName;
-      input.remove();
+      removeInput();
       renderFeatureModel(containerId, options);
     } else if (e.key === 'Escape') {
-      input.remove();
+      removeInput();
     }
   });
   // Remove input if focus lost
   input.addEventListener('blur', function() {
-    setTimeout(() => { if (document.activeElement !== input) input.remove(); }, 100);
+    setTimeout(removeInput, 100);
+  });
+}
+
+// --- Public API: Highlight features by names (including collapsed subtree logic) ---
+// Usage: window.FME.highlightFeaturesByNames(["FeatureA", "FeatureB"])
+function highlightFeaturesByNames(featureNames) {
+  // Remove previous highlights
+  document.querySelectorAll('.fme-highlight').forEach(n => n.classList.remove('fme-highlight'));
+  // Get the current model tree and collapsedMap
+  const featureModelRoot = window.FME && window.FME.__featureModelRoot ? window.FME.__featureModelRoot : undefined;
+  const collapsedMap = window.FME && window.FME.__collapsedMap ? window.FME.__collapsedMap : undefined;
+  if (!featureModelRoot || !collapsedMap) return;
+  // Helper: recursively check if a node or any descendant has a given name
+  function subtreeContainsFeature(node, name) {
+    if (!node) return false;
+    if (node.name === name) return true;
+    if (node.children) {
+      for (const child of node.children) {
+        if (subtreeContainsFeature(child, name)) return true;
+      }
+    }
+    return false;
+  }
+  // Highlight visible nodes whose text matches (direct matches only)
+  document.querySelectorAll('.fme-node text').forEach(t => {
+    if (featureNames.includes(t.textContent)) {
+      t.closest('.fme-node').classList.add('fme-highlight');
+    }
+  });
+  // Highlight badges for visible nodes whose collapsed subtrees contain a relevant feature (but do NOT highlight the node itself)
+  document.querySelectorAll('.fme-node').forEach(nodeElem => {
+    const textElem = nodeElem.querySelector('text');
+    if (!textElem) return;
+    const nodeName = textElem.textContent;
+    // Find the node in the model tree by name (assume unique names)
+    function findNodeByName(node, name) {
+      if (node.name === name) return node;
+      if (node.children) {
+        for (const child of node.children) {
+          const found = findNodeByName(child, name);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+    const modelNode = findNodeByName(featureModelRoot, nodeName);
+    if (!modelNode) return;
+    // Compute path for this node
+    let path = 'root';
+    let n = modelNode;
+    const pathParts = [];
+    while (n && n.name && n !== featureModelRoot) {
+      pathParts.unshift(n.name);
+      // Find parent (inefficient, but ok for demo)
+      function findParent(root, child) {
+        if (!root.children) return null;
+        for (const c of root.children) {
+          if (c === child) return root;
+          const found = findParent(c, child);
+          if (found) return found;
+        }
+        return null;
+      }
+      n = findParent(featureModelRoot, n);
+    }
+    if (pathParts.length > 0) path += '/' + pathParts.join('/');
+    if (collapsedMap[path]) {
+      let subtreeMatch = false;
+      for (const fname of featureNames) {
+        // Only highlight badge, not node, for subtree matches
+        if (subtreeContainsFeature(modelNode, fname)) {
+          subtreeMatch = true;
+          break;
+        }
+      }
+      // Highlight the badge if subtreeMatch
+      if (subtreeMatch) {
+        const badge = document.querySelector(`.fme-badge[data-node-name="${nodeName}"]`);
+        if (badge) badge.classList.add('fme-highlight');
+      }
+    }
+  });
+}
+// Attach to window for demo and external use
+if (typeof window !== 'undefined') {
+  window.FME = window.FME || {};
+  window.FME.highlightFeaturesByNames = highlightFeaturesByNames;
+}
+
+// --- Public API: Create constraints panel ---
+function createConstraintsPanel(containerId, constraints) {
+  let panel = document.getElementById('fme-constraints-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'fme-constraints-panel';
+    panel.className = 'fme-constraints-panel';
+    panel.innerHTML = `
+      <div class="fme-constraints-panel-header">Constraints</div>
+      <ul class="fme-constraints-list"></ul>
+    `;
+    document.getElementById(containerId).appendChild(panel);
+    
+    // Resizing logic
+    let isResizing = false, startY = 0, startHeight = 0;
+    const header = panel.querySelector('.fme-constraints-panel-header');
+    header.addEventListener('mousedown', function(e) {
+      isResizing = true;
+      startY = e.clientY;
+      startHeight = panel.offsetHeight;
+      document.body.style.cursor = 'ns-resize';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!isResizing) return;
+      const dy = startY - e.clientY;
+      let newHeight = startHeight + dy;
+      newHeight = Math.max(40, Math.min(window.innerHeight * 0.5, newHeight));
+      panel.style.height = newHeight + 'px';
+    });
+    document.addEventListener('mouseup', function() {
+      isResizing = false;
+      document.body.style.cursor = '';
+    });
+  }
+  
+  // Update constraints list
+  const list = panel.querySelector('.fme-constraints-list');
+  list.innerHTML = '';
+  
+  if (constraints && constraints.length > 0) {
+    constraints.forEach((c, i) => {
+      // Remove single quotes from feature names for display
+      const displayConstraint = c.replace(/'([^']+)'/g, "$1");
+      const li = document.createElement('li');
+      li.className = 'fme-constraint-item';
+      li.textContent = displayConstraint;
+      
+      // Highlight features on hover
+      li.addEventListener('mouseenter', () => {
+        // Extract all feature names from the constraint
+        const featureNames = Array.from(c.matchAll(/'([^']+)'/g)).map(m => m[1]);
+        if (window.FME && typeof window.FME.highlightFeaturesByNames === 'function') {
+          window.FME.highlightFeaturesByNames(featureNames);
+        }
+      });
+      li.addEventListener('mouseleave', () => {
+        document.querySelectorAll('.fme-highlight').forEach(n => n.classList.remove('fme-highlight'));
+      });
+      list.appendChild(li);
+    });
+  } else {
+    const li = document.createElement('li');
+    li.className = 'fme-no-constraints';
+    li.textContent = '(No constraints)';
+    list.appendChild(li);
+  }
+}
+
+// Attach to window for demo and external use
+if (typeof window !== 'undefined') {
+  window.FME = window.FME || {};
+  window.FME.highlightFeaturesByNames = highlightFeaturesByNames;
+  window.FME.createConstraintsPanel = createConstraintsPanel;
+}
+
+// Utility: robustly merge and update hidden sibling groups
+function setHiddenSiblingsGroup(parentPath, siblings, indicesToHide) {
+  // indicesToHide: array of indices in siblings to hide
+  if (!hiddenSiblingsMap[parentPath]) hiddenSiblingsMap[parentPath] = [];
+  // Remove any overlapping/adjacent groups
+  let newGroup = indicesToHide.slice().sort((a, b) => a - b);
+  // Remove duplicates
+  newGroup = Array.from(new Set(newGroup));
+  // Remove from hiddenSiblingsMap any group that overlaps or is adjacent
+  hiddenSiblingsMap[parentPath] = (hiddenSiblingsMap[parentPath] || []).filter(group => {
+    const minIdx = Math.min(...group);
+    const maxIdx = Math.max(...group);
+    if (newGroup.some(idx => idx >= minIdx - 1 && idx <= maxIdx + 1)) {
+      // Overlaps or adjacent
+      return false;
+    }
+    return true;
+  });
+  // Add the new group
+  hiddenSiblingsMap[parentPath].push(newGroup);
+  // Update hiddenMap for all nodes in the group
+  newGroup.forEach(idx => {
+    const sibPath = parentPath + '/' + siblings[idx].name;
+    hiddenMap[sibPath] = true;
   });
 } 

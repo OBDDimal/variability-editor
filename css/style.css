@@ -1,6 +1,6 @@
 /* Styles for Feature Model Editor v2 */
 
-#legend .legend-row{
+#fme-legend .fme-legend-row{
   display: flex;
   align-items: center;
   height: 32px;
@@ -10,13 +10,13 @@
   border:1px solid red;
 }
 
-#legend .legend-row-single {
+#fme-legend .fme-legend-row-single {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.legend-label.legend {
+.fme-legend-label.fme-legend {
   font-size: 10px;
   font-family: monospace;
   text-align: center;
@@ -28,11 +28,11 @@
   color: #222;
 }
 
-#legend .legend-sep{
+#fme-legend .fme-legend-sep{
   height: 16pt;
 }
 
-#legend .legend-row-double {
+#fme-legend .fme-legend-row-double {
   display: flex;
   flex-direction: row;
   vertical-align: middle;
@@ -42,7 +42,7 @@
   width: 100%;
 }
 
-#legend .legend-col-icon {
+#fme-legend .fme-legend-col-icon {
   flex: 0 0 33%;
   display: flex;
   align-items: center;
@@ -51,7 +51,7 @@
   min-width: 40px;
 }
 
-#legend .legend-col-label {
+#fme-legend .fme-legend-col-label {
   flex: 1 1 67%;
   text-align: left;
   padding-left: 8px;

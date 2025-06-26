@@ -1,121 +1,195 @@
-/* Feature Model SVG Styles (Kandinsky-inspired, revised) */
-.main-svg {
-    margin: auto;
-    background: #fff;
+/* Feature Model SVG Styles (Kandinsky-inspired, revised, namespaced) */
+
+/* Color scheme variables */
+:root {
+  /* Kandinsky-inspired scheme (default) */
+  --fme-bg-primary: #fff;
+  --fme-bg-secondary: #e3f0fc;
+  --fme-bg-abstract: #fffde7;
+  --fme-bg-core: #b3cde0;
+  --fme-bg-dead: #ffd1d1;
+  --fme-stroke-primary: #5e81ac;
+  --fme-stroke-secondary: #111;
+  --fme-text-primary: #111;
+  --fme-marker-fill: #111;
+  --fme-marker-stroke: #111;
+  --fme-optional-fill: #fff;
+  --fme-or-arc-fill: #fff;
+  --fme-or-arc-stroke: #111;
+  --fme-alt-arc-fill: #111;
+  --fme-alt-arc-stroke: #111;
+  --fme-legend-bg: #fff;
+  --fme-legend-border: #5e81ac;
+  --fme-legend-handle-bg: #b3cde0;
+  --fme-legend-handle-text: #111;
+  --fme-legend-handle-border: #5e81ac;
 }
 
-.node {
+/* NGE-inspired color scheme */
+.fme-nge-theme {
+  --fme-bg-primary: #1a1a2e;
+  --fme-bg-secondary: #16213e;
+  --fme-bg-abstract: #0f3460;
+  --fme-bg-core: #533483;
+  --fme-bg-dead: #e94560;
+  --fme-stroke-primary: #ff6b6b;
+  --fme-stroke-secondary: #4ecdc4;
+  --fme-text-primary: #ffffff;
+  --fme-marker-fill: #ff6b6b;
+  --fme-marker-stroke: #ff6b6b;
+  --fme-optional-fill: #16213e;
+  --fme-or-arc-fill: #16213e;
+  --fme-or-arc-stroke: #4ecdc4;
+  --fme-alt-arc-fill: #ff6b6b;
+  --fme-alt-arc-stroke: #ff6b6b;
+  --fme-legend-bg: #1a1a2e;
+  --fme-legend-border: #ff6b6b;
+  --fme-legend-handle-bg: #533483;
+  --fme-legend-handle-text: #ffffff;
+  --fme-legend-handle-border: #ff6b6b;
+}
+
+/* FeatureIDE color scheme */
+.fme-featureide-theme {
+  --fme-bg-primary: #fff;
+  --fme-bg-secondary: #e6e6fa;
+  --fme-bg-abstract: #e6e6fa;
+  --fme-bg-core: #fff;
+  --fme-bg-dead: #fff;
+  --fme-stroke-primary: #000;
+  --fme-stroke-secondary: #000;
+  --fme-text-primary: #000;
+  --fme-marker-fill: #000;
+  --fme-marker-stroke: #000;
+  --fme-optional-fill: #fff;
+  --fme-or-arc-fill: #fff;
+  --fme-or-arc-stroke: #000;
+  --fme-alt-arc-fill: #000;
+  --fme-alt-arc-stroke: #000;
+  --fme-legend-bg: #fff;
+  --fme-legend-border: #000;
+  --fme-legend-handle-bg: #e0e0e0;
+  --fme-legend-handle-text: #000;
+  --fme-legend-handle-border: #000;
+}
+
+.fme-main-svg {
+    margin: auto;
+    background: var(--fme-bg-primary);
+}
+
+.fme-node {
   cursor: pointer;
   font-family: monospace;
 }
 
-.node rect {
-  fill: #e3f0fc;
-  stroke: #5e81ac;
+.fme-node rect {
+  fill: var(--fme-bg-secondary);
+  stroke: var(--fme-stroke-primary);
   stroke-width: 1.5px;
-  transition: all 0.75s;
+  transition: fill 0.75s;
 }
 
-.node.abstract rect {
-  fill: #fffde7;
-  stroke: #5e81ac;
+.fme-node.fme-abstract rect {
+  fill: var(--fme-bg-abstract);
+  stroke: var(--fme-stroke-primary);
 }
 
-.node.dead rect {
-  fill: #ffd1d1;
+.fme-node.fme-dead rect {
+  fill: var(--fme-bg-dead);
 }
 
-.node.core rect {
-  fill: #b3cde0;
+.fme-node.fme-core rect {
+  fill: var(--fme-bg-core);
 }
 
-.node text {
-  fill: #111;
+.fme-node text {
+  fill: var(--fme-text-primary);
   text-anchor: middle;
   user-select: none;
 }
 
-.node.legend {
+.fme-node.fme-legend {
   cursor: default;
 }
-.node.legend text {
+.fme-node.fme-legend text {
   font-size: 0.75rem;
-  fill: #111 !important;
+  fill: var(--fme-text-primary) !important;
 }
 
-.edge {
+.fme-edge {
   fill: none;
-  stroke: #111;
+  stroke: var(--fme-stroke-secondary);
   stroke-width: 1.5px;
 }
 
-.abstract{
+.fme-abstract{
   font-style: italic;
 } 
 
-.core {
+.fme-core {
   text-decoration: underline;
 }
 
-.dead {
+.fme-dead {
   text-decoration: line-through;
 }
 
-.mandatory-marker {
-  fill: #111;
-  stroke: #111;
+.fme-mandatory-marker {
+  fill: var(--fme-marker-fill);
+  stroke: var(--fme-marker-stroke);
   stroke-width: 1.5px;
 }
 
-.optional-marker {
-  fill: #fff;
-  stroke: #111;
+.fme-optional-marker {
+  fill: var(--fme-optional-fill);
+  stroke: var(--fme-marker-stroke);
   stroke-width: 1.5px;
 }
 
-.or-group-arc {
-  fill: #fff;
-  stroke: #111;
+.fme-or-group-arc {
+  fill: var(--fme-or-arc-fill);
+  stroke: var(--fme-or-arc-stroke);
   stroke-width: 2;
 }
 
-.alt-group-arc {
-  fill: #111;
-  stroke: #111;
+.fme-alt-group-arc {
+  fill: var(--fme-alt-arc-fill);
+  stroke: var(--fme-alt-arc-stroke);
   stroke-width: 2;
 }
 
-.grabbable {
+.fme-grabbable {
   cursor: grab;
 }
-.grabbed {
+.fme-grabbed {
   cursor: grabbing;
 }
 
-.node-dead {
+.fme-node-dead {
   text-decoration: line-through;
 }
 
-.node-core {
+.fme-node-core {
   text-decoration: underline;
 }
 
-.edge-false-optional {
+.fme-edge-false-optional {
   stroke: #e63946;
 }
-.edge-false-optional-marker {
+.fme-edge-false-optional-marker {
   fill: #e63946;
   stroke: #e63946;
 }
 
-.optional-marker.false-optional {
+.fme-optional-marker.fme-false-optional {
   stroke: #e63946;
 }
 
-#legend {
+#fme-legend {
   min-width: 220px;
-  background: #fff;
-  border: 1.5px solid #5e81ac;
+  background: var(--fme-legend-bg);
+  border: 1.5px solid var(--fme-legend-border);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   position: absolute;
@@ -124,36 +198,140 @@
   user-select: none;
   cursor: grab;
 }
-#legend.dragging {
+#fme-legend.fme-dragging {
   cursor: grabbing;
 }
-#legend .legend-drag-handle {
-  background: #b3cde0;
-  color: #111;
-  border-bottom: 1px solid #5e81ac;
+#fme-legend .fme-legend-drag-handle {
+  background: var(--fme-legend-handle-bg);
+  color: var(--fme-legend-handle-text);
+  border-bottom: 1px solid var(--fme-legend-handle-border);
   border-radius: 8px 8px 0 0;
   padding: 6px 12px;
   font-weight: bold;
 }
-#legend.dragging .legend-drag-handle {
-  background: #b3cde0;
+#fme-legend.fme-dragging .fme-legend-drag-handle {
+  background: var(--fme-legend-handle-bg);
 }
 
-#legend .legend-row-single[data-legend-type="base"] rect {
-  fill: #e3f0fc !important;
-  stroke: #5e81ac !important;
+#fme-legend .fme-legend-row-single[data-legend-type="base"] rect {
+  fill: var(--fme-bg-secondary) !important;
+  stroke: var(--fme-stroke-primary) !important;
 }
-#legend .legend-row-single[data-legend-type="base"] text {
-  fill: #111 !important;
-}
-
-#legend .legend-row-single[data-legend-type="abstract"] rect {
-  fill: #fffde7 !important;
-  stroke: #5e81ac !important;
-}
-#legend .legend-row-single[data-legend-type="abstract"] text {
-  fill: #111 !important;
+#fme-legend .fme-legend-row-single[data-legend-type="base"] text {
+  fill: var(--fme-text-primary) !important;
 }
 
-#legend .legend-content {
+#fme-legend .fme-legend-row-single[data-legend-type="abstract"] rect {
+  fill: var(--fme-bg-abstract) !important;
+  stroke: var(--fme-stroke-primary) !important;
+}
+#fme-legend .fme-legend-row-single[data-legend-type="abstract"] text {
+  fill: var(--fme-text-primary) !important;
+}
+
+#fme-legend .fme-legend-content {
+}
+
+/* Constraints Panel Styles */
+.fme-constraints-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 120px;
+  background: #f8f9fa;
+  border-top: 2px solid #b0bec5;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.07);
+  resize: none;
+  overflow: auto;
+  z-index: 1000;
+  user-select: none;
+  transition: height 0.1s;
+}
+
+.fme-constraints-panel-header {
+  cursor: ns-resize;
+  background: #e3eafc;
+  padding: 4px 12px;
+  font-weight: bold;
+  font-size: 15px;
+  border-bottom: 1px solid #b0bec5;
+  user-select: none;
+  margin: 0;
+}
+
+.fme-constraints-list {
+  margin: 0;
+  padding: 8px 16px;
+  list-style: none;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+}
+
+.fme-constraint-item {
+  list-style: none;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.fme-constraint-item:hover {
+  background: #e3eafc;
+}
+
+.fme-no-constraints {
+  list-style: none;
+  color: #666;
+  font-style: italic;
+}
+
+/* Highlight styles for nodes and badges - unified system */
+.fme-highlight rect {
+  stroke: #1976d2 !important;
+  stroke-width: 3 !important;
+  filter: drop-shadow(0 0 6px #1976d2aa);
+  opacity: 0.8;
+}
+
+/* Hidden siblings indicators */
+.fme-hidden-siblings-indicator {
+  transition: all 0.2s ease;
+}
+
+.fme-hidden-siblings-indicator:hover polygon {
+  fill: #e3eafc !important;
+  stroke: #1976d2 !important;
+}
+
+.fme-hidden-siblings-indicator:hover text {
+  fill: #1976d2 !important;
+}
+
+.fme-hidden-siblings-indicator polygon {
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.fme-hidden-siblings-indicator text {
+  transition: fill 0.2s ease;
+}
+
+/* Hidden between indicators (diamond shape) */
+.fme-hidden-between-indicator {
+  transition: all 0.2s ease;
+}
+
+.fme-hidden-between-indicator:hover polygon {
+  fill: #e3eafc !important;
+  stroke: #1976d2 !important;
+}
+
+.fme-hidden-between-indicator:hover text {
+  fill: #1976d2 !important;
+}
+
+.fme-hidden-between-indicator polygon {
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.fme-hidden-between-indicator text {
+  transition: fill 0.2s ease;
 } 

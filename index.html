@@ -81,12 +81,58 @@
           children
         };
       }
+      // --- Parse constraints (now implemented, with logic conversion) ---
+      function parseConstraints(xml) {
+        const constraints = [];
+        const constraintsNode = xml.querySelector('constraints');
+        if (!constraintsNode) return constraints;
+        // Recursively convert logic XML to string
+        function logicToString(node) {
+          if (!node) return '';
+          switch (node.tagName) {
+            case 'var':
+              return `'${node.textContent.trim()}'`;
+            case 'conj': {
+              const children = Array.from(node.children).map(logicToString);
+              return '(' + children.join(' & ') + ')';
+            }
+            case 'disj': {
+              const children = Array.from(node.children).map(logicToString);
+              return '(' + children.join(' | ') + ')';
+            }
+            case 'imp': {
+              const children = Array.from(node.children).map(logicToString);
+              if (children.length === 2) {
+                return children[0] + ' => ' + children[1];
+              } else if (children.length > 1) {
+                // If more than two, treat as left => (right1 & right2 ...)
+                return children[0] + ' => (' + children.slice(1).join(' & ') + ')';
+              } else {
+                return children[0] || '';
+              }
+            }
+            case 'not': {
+              const children = Array.from(node.children).map(logicToString);
+              return '!' + children[0];
+            }
+            default:
+              // Fallback: try to parse children
+              return Array.from(node.children).map(logicToString).join(' ');
+          }
+        }
+        constraintsNode.querySelectorAll('rule').forEach(ruleNode => {
+          // Find the first logic child (imp, conj, disj, etc.)
+          const logic = Array.from(ruleNode.children).find(n => ['imp','conj','disj','not','var'].includes(n.tagName));
+          if (logic) {
+            constraints.push(logicToString(logic));
+          }
+        });
+        return constraints;
+      }
       const structRoot = xml.querySelector('struct').firstElementChild;
       const features = parseStruct(structRoot, null, null, true);
-      // --- Parse constraints (not rendered for now) ---
-      // function parseConstraint(node) { ... }
-      // const constraints = ...
-      return { features };
+      const constraints = parseConstraints(xml);
+      return { features, constraints };
     }
     fetchAndTranslateFeatureIDE('https://raw.githubusercontent.com/FeatureIDE/FeatureIDE/develop/plugins/de.ovgu.featureide.examples/featureide_examples/FeatureModels/BerkeleyDB/model.xml')
       .then(model => {
@@ -95,6 +141,11 @@
           model: model.features,
           grow_x: 25
         });
+        
+        // Create constraints panel using library API
+        if (window.FME && typeof window.FME.createConstraintsPanel === 'function') {
+          window.FME.createConstraintsPanel('app', model.constraints);
+        }
       });
   </script>
 </body>
