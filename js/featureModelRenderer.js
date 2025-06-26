@@ -37,10 +37,11 @@ function setupZoom(svg, svgContent, width, height) {
   const zoom = d3.zoom()
     .scaleExtent([0.5, 2])
     .filter(event => {
-      // Only allow wheel for zoom, and left mouse for pan, but not if target is a node
+      // Only allow wheel for zoom, and left mouse for pan, but not if target is a node or indicator node
       return (
         (event.type === 'wheel' || (event.type === 'mousedown' && event.button === 0)) &&
-        !event.target.closest('.fme-node')
+        !event.target.closest('.fme-node') &&
+        !event.target.closest('.fme-indicator-node')
       );
     })
     .on('start', function() {
@@ -583,6 +584,53 @@ function toggleTheme(nextTheme) {
   }
 }
 
+// --- Insert indicator nodes for hidden siblings ---
+function insertIndicatorNodes(node, parentPath = 'root') {
+  if (!node.children || node.children.length === 0) return;
+  const groups = hiddenSiblingsMap[parentPath] || [];
+  if (groups.length === 0) {
+    node.children.forEach(child => insertIndicatorNodes(child, parentPath + '/' + child.name));
+    return;
+  }
+  let newChildren = [];
+  let i = 0;
+  while (i < node.children.length) {
+    let groupIdx = -1;
+    let group = null;
+    for (let gi = 0; gi < groups.length; ++gi) {
+      if (groups[gi][0] === i) {
+        groupIdx = gi;
+        group = groups[gi];
+        break;
+      }
+    }
+    if (group && group.length > 0) {
+      const firstIdx = group[0];
+      const lastIdx = group[group.length - 1];
+      let indicatorType = 'diamond';
+      if (firstIdx === 0) indicatorType = 'left';
+      else if (lastIdx === node.children.length - 1) indicatorType = 'right';
+      // Create as FeatureNode
+      const indicatorNode = new FeatureNode('__INDICATOR__' + parentPath + '__' + groupIdx, {
+        isIndicator: true,
+        indicatorType,
+        groupIdx,
+        count: group.length,
+        parentPath,
+        hiddenIndices: group.slice(),
+        children: []
+      });
+      newChildren.push(indicatorNode);
+      i = lastIdx + 1;
+    } else {
+      newChildren.push(node.children[i]);
+      insertIndicatorNodes(node.children[i], parentPath + '/' + node.children[i].name);
+      i++;
+    }
+  }
+  node.children = newChildren;
+}
+
 export function renderFeatureModel(containerId = 'app', options = {}) {
   // Store current options globally for theme re-rendering
   window.currentFeatureModelOptions = options;
@@ -601,6 +649,8 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     return;
   }
   const featureModelRoot = buildFeatureNodeFromObject(options.model);
+  // Insert indicator nodes before filtering
+  insertIndicatorNodes(featureModelRoot, 'root');
   if (!oldSvg.empty()) {
     const g = oldSvg.select('g#draggable');
     const transform = g.attr('transform');
@@ -673,11 +723,16 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     return w;
   }
   root.each(d => {
-    const displayText = getDisplayText(d.data.name);
-    const textWidth = measureTextWidth(displayText);
-    const padding = 24;
-    d._rectWidth = Math.max(rectWidth, textWidth + padding);
-    d._displayText = displayText;
+    if (d.data.isIndicator) {
+      d._rectWidth = rectHeight; // uniform width for all indicator types
+      d._displayText = '';
+    } else {
+      const displayText = getDisplayText(d.data.name);
+      const textWidth = measureTextWidth(displayText);
+      const padding = 24;
+      d._rectWidth = Math.max(rectWidth, textWidth + padding);
+      d._displayText = displayText;
+    }
   });
   // Compute max width at each level for layout
   const namesByLevel = collectNames(root);
@@ -686,8 +741,11 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
   const treeLayout = d3.tree()
     .nodeSize([1, rectHeight + levelDistance])
     .separation((a, b) => {
+      if (a.data.isIndicator || b.data.isIndicator) {
+          return siblingDistance * 0.125;
+        }
       if (a.parent === b.parent) {
-        // (widthA / 2) + grow_x + (widthB / 2) in SVG units
+        
         return (a._rectWidth / 2 + siblingDistance + b._rectWidth / 2);
       }
       return 1; // default for non-siblings
@@ -733,13 +791,27 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     Object.values(levels).forEach(nodes => {
       // DO NOT SORT! Maintain original sibling order.
       let prevRight = null;
+      let prevNode = null;
       nodes.forEach(node => {
         const left = node.x - (node._rectWidth / 2);
-        if (prevRight !== null && left < prevRight + grow_x) {
-          const shift = (prevRight + grow_x) - left;
+        let gap;
+        if (prevNode) {
+          if (prevNode.parent === node.parent) {
+            if (prevNode.data.isIndicator || node.data.isIndicator) {
+              gap = 0.25*grow_x;
+            } else {
+              gap = grow_x;
+            }
+          } else {
+            gap = 1.5 * grow_x;
+          }
+        }
+        if (prevRight !== null && gap !== undefined && left < prevRight + gap) {
+          const shift = (prevRight + gap) - left;
           node.each(n => { n.x += shift; });
         }
         prevRight = node.x + (node._rectWidth / 2);
+        prevNode = node;
       });
     });
   }
@@ -785,7 +857,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
 
   // Draw straight lines for links
   svgContent.selectAll('line.fme-edge')
-    .data(root.links())
+    .data(root.links().filter(d => !d.target.data.isIndicator))
     .enter()
     .append('line')
     .attr('class', d => {
@@ -813,15 +885,28 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     .data(root.descendants())
     .enter()
     .append('g')
-    .attr('class', d => `fme-node${d.data.abstract ? ' fme-abstract' : ''}`)
+    .attr('class', d => d.data.isIndicator ? 'fme-indicator-node' : `fme-node${d.data.abstract ? ' fme-abstract' : ''}`)
     .attr('transform', d => `translate(${d.x},${d.y})`)
     .on('click', function(event, d) {
+      if (d.data.isIndicator) {
+        // Unhide group
+        const { parentPath, groupIdx, hiddenIndices } = d.data;
+        hiddenIndices.forEach(idx => {
+          const siblings = getModelNodeByPath(options.model, parentPath).children;
+          const sibPath = parentPath + '/' + siblings[idx].name;
+          delete hiddenMap[sibPath];
+        });
+        hiddenSiblingsMap[parentPath] = (hiddenSiblingsMap[parentPath] || []).filter((g, i) => i !== groupIdx);
+        renderFeatureModel(containerId, options);
+        return;
+      }
       event.stopPropagation();
       const path = getNodePath(d);
       collapsedMap[path] = !collapsedMap[path];
       renderFeatureModel(containerId, options);
     })
     .on('contextmenu', function(event, d) {
+      if (d.data.isIndicator) return; // No context menu for indicator
       event.preventDefault();
       d3.selectAll('.custom-context-menu').remove();
       const path = getNodePath(d);
@@ -975,7 +1060,65 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     }
   });
 
-  node.append('rect')
+  // Draw indicator nodes (minimal footprint, no node styling, no label)
+  node.filter(d => d.data.isIndicator).each(function(d) {
+    const { indicatorType, count } = d.data;
+    const g = d3.select(this);
+    if (indicatorType === 'left' || indicatorType === 'right') {
+      const base = rectHeight;
+      const halfBase = base / 2;
+      if (indicatorType === 'left') {
+        g.append('polygon')
+          .attr('points', `${-halfBase},0 ${halfBase},${-rectHeight/2} ${halfBase},${rectHeight/2}`)
+          .attr('fill', '#fff')
+          .attr('stroke', '#5e81ac')
+          .attr('stroke-width', 1.5);
+        g.append('text')
+          .attr('x', 0)
+          .attr('text-anchor', 'middle')
+          .attr('dy', '0.35em')
+          .attr('fill', '#111')
+          .attr('font-size', '10px')
+          .attr('font-family', 'monospace')
+          .attr('font-weight', 'bold')
+          .text(count > 9 ? '9+' : count);
+      } else {
+        g.append('polygon')
+          .attr('points', `${halfBase},0 ${-halfBase},${-rectHeight/2} ${-halfBase},${rectHeight/2}`)
+          .attr('fill', '#fff')
+          .attr('stroke', '#5e81ac')
+          .attr('stroke-width', 1.5);
+        g.append('text')
+          .attr('x', 0)
+          .attr('text-anchor', 'middle')
+          .attr('dy', '0.35em')
+          .attr('fill', '#111')
+          .attr('font-size', '10px')
+          .attr('font-family', 'monospace')
+          .attr('font-weight', 'bold')
+          .text(count > 9 ? '9+' : count);
+      }
+    } else {
+      const diamondSize = rectHeight/2;
+      g.append('polygon')
+        .attr('points', `0,${-diamondSize} ${diamondSize},0 0,${diamondSize} ${-diamondSize},0`)
+        .attr('fill', '#fff')
+        .attr('stroke', '#5e81ac')
+        .attr('stroke-width', 1.5);
+      g.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '0.35em')
+        .attr('fill', '#111')
+        .attr('font-size', '9px')
+        .attr('font-family', 'monospace')
+        .attr('font-weight', 'bold')
+        .text(count > 9 ? '9+' : count);
+    }
+  });
+
+  // Draw normal nodes as before (rect/text) only for non-indicator nodes
+  const normalNodes = node.filter(d => !d.data.isIndicator);
+  normalNodes.append('rect')
     .attr('width', d => d._rectWidth)
     .attr('height', rectHeight)
     .attr('x', d => -d._rectWidth / 2)
@@ -983,7 +1126,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     .attr('rx', 6)
     .attr('ry', 6);
 
-  node.append('text')
+  normalNodes.append('text')
     .attr('dy', 5)
     .attr('text-anchor', 'middle')
     .attr('font-family', 'inherit')
@@ -999,14 +1142,16 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
   // Draw node markers (mandatory/optional) after nodes so they appear above
   root.descendants().forEach(parent => {
     if (!parent.children || parent.children.length < 1) return;
-    const types = parent.children.map(child => child.data.type);
+    const realChildren = parent.children.filter(child => !child.data.isIndicator);
+    if (!realChildren.length) return;
+    const types = realChildren.map(child => child.data.type);
     const allMandatoryOptional = types.every(t => t === 'mandatory' || t === 'optional');
     const allOr = types.every(t => t === 'or');
     const allXor = types.every(t => t === 'xor');
     if (allOr || allXor) {
-      drawGroupArc(parent, parent.children, allOr ? 'or' : 'xor', direction, rectWidth, rectHeight, svgContent);
+      drawGroupArc(parent, realChildren, allOr ? 'or' : 'xor', direction, rectWidth, rectHeight, svgContent);
     } else if (allMandatoryOptional) {
-      const links = parent.children.map(child => ({ source: parent, target: child }));
+      const links = realChildren.map(child => ({ source: parent, target: child }));
       svgContent.selectAll('circle.fme-mandatory-marker-' + parent.data.name)
         .data(links.filter(d => d.target.data.type === 'mandatory'))
         .enter()
@@ -1187,107 +1332,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
             anchor = node;
           }
         }
-        // Draw indicator
-        let indicator;
-        if (indicatorType === 'left') {
-          const indicatorX = anchor.x - (anchor._rectWidth || rectWidth) / 2 - 15;
-          const indicatorY = anchor.y;
-          const base = rectHeight;
-          indicator = svgContent.append('g')
-            .attr('class', 'fme-hidden-siblings-indicator')
-            .attr('data-parent-path', path)
-            .attr('data-group-idx', groupIdx)
-            .attr('data-side', 'left')
-            .attr('transform', `translate(${indicatorX},${indicatorY})`)
-            .style('cursor', 'pointer')
-            .on('click', function() {
-              group.forEach(idx => {
-                const sibPath = path + '/' + siblings[idx].name;
-                delete hiddenMap[sibPath];
-              });
-              hiddenSiblingsMap[path] = (hiddenSiblingsMap[path] || []).filter((g, i) => i !== groupIdx);
-              renderFeatureModel(containerId, options);
-            });
-          indicator.append('polygon')
-            .attr('points', `${-base},0 0,${-rectHeight/2} 0,${rectHeight/2}`)
-            .attr('fill', '#fff')
-            .attr('stroke', '#5e81ac')
-            .attr('stroke-width', 1.5);
-          indicator.append('text')
-            .attr('x', -base/2)
-            .attr('text-anchor', 'middle')
-            .attr('dy', '0.35em')
-            .attr('fill', '#111')
-            .attr('font-size', '10px')
-            .attr('font-family', 'monospace')
-            .attr('font-weight', 'bold')
-            .text(group.length > 9 ? '9+' : group.length);
-        } else if (indicatorType === 'right') {
-          const indicatorX = anchor.x + (anchor._rectWidth || rectWidth) / 2 + 15;
-          const indicatorY = anchor.y;
-          const base = rectHeight;
-          indicator = svgContent.append('g')
-            .attr('class', 'fme-hidden-siblings-indicator')
-            .attr('data-parent-path', path)
-            .attr('data-group-idx', groupIdx)
-            .attr('data-side', 'right')
-            .attr('transform', `translate(${indicatorX},${indicatorY})`)
-            .style('cursor', 'pointer')
-            .on('click', function() {
-              group.forEach(idx => {
-                const sibPath = path + '/' + siblings[idx].name;
-                delete hiddenMap[sibPath];
-              });
-              hiddenSiblingsMap[path] = (hiddenSiblingsMap[path] || []).filter((g, i) => i !== groupIdx);
-              renderFeatureModel(containerId, options);
-            });
-          indicator.append('polygon')
-            .attr('points', `${base},0 0,${-rectHeight/2} 0,${rectHeight/2}`)
-            .attr('fill', '#fff')
-            .attr('stroke', '#5e81ac')
-            .attr('stroke-width', 1.5);
-          indicator.append('text')
-            .attr('x', base/2)
-            .attr('text-anchor', 'middle')
-            .attr('dy', '0.35em')
-            .attr('fill', '#111')
-            .attr('font-size', '10px')
-            .attr('font-family', 'monospace')
-            .attr('font-weight', 'bold')
-            .text(group.length > 9 ? '9+' : group.length);
-        } else {
-          // diamond
-          const diamondSize = 12;
-          const indicatorX = anchor.x;
-          const indicatorY = anchor.y;
-          indicator = svgContent.append('g')
-            .attr('class', 'fme-hidden-between-indicator')
-            .attr('data-parent-path', path)
-            .attr('data-group-idx', groupIdx)
-            .attr('transform', `translate(${indicatorX},${indicatorY})`)
-            .style('cursor', 'pointer')
-            .on('click', function() {
-              group.forEach(idx => {
-                const sibPath = path + '/' + siblings[idx].name;
-                delete hiddenMap[sibPath];
-              });
-              hiddenSiblingsMap[path] = (hiddenSiblingsMap[path] || []).filter((g, i) => i !== groupIdx);
-              renderFeatureModel(containerId, options);
-            });
-          indicator.append('polygon')
-            .attr('points', `0,${-diamondSize} ${diamondSize},0 0,${diamondSize} ${-diamondSize},0`)
-            .attr('fill', '#fff')
-            .attr('stroke', '#5e81ac')
-            .attr('stroke-width', 1.5);
-          indicator.append('text')
-            .attr('text-anchor', 'middle')
-            .attr('dy', '0.35em')
-            .attr('fill', '#111')
-            .attr('font-size', '9px')
-            .attr('font-family', 'monospace')
-            .attr('font-weight', 'bold')
-            .text(group.length > 9 ? '9+' : group.length);
-        }
+        
       });
     }
   });
