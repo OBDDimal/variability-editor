@@ -59,3 +59,84 @@
   align-items: center;
     font-size: 0.75rem;
 }
+
+/* Utility for hiding elements (if not in fm.css) */
+.fme-hidden { display: none !important; }
+
+/* No-select utility (if not in fm.css) */
+.fme-noselect { user-select: none !important; }
+
+/* Drag cursor utility (if not in fm.css) */
+.fme-cursor-ns-resize { cursor: ns-resize !important; }
+
+/* Context menu styles (moved from JS) */
+.custom-context-menu {
+  font-family: sans-serif !important;
+  min-width: 180px;
+  background: #f4f6fa;
+  border: 1.5px solid #90a4ae;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.13);
+  padding: 6px 0;
+  z-index: 10000;
+  user-select: none;
+  transition: box-shadow 0.2s;
+  position: absolute;
+}
+.custom-context-menu.submenu {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  margin-left: -2px;
+  min-width: 180px;
+  left: 100%;
+  top: 0;
+}
+.custom-context-menu .menu-item {
+  padding: 8px 20px 8px 16px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: #222;
+  outline: none;
+  margin: 0 4px;
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.custom-context-menu .menu-item.disabled {
+  color: #aaa !important;
+  background: #e3eafc !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+.custom-context-menu .menu-item.active,
+.custom-context-menu .menu-item:hover,
+.custom-context-menu .menu-item:focus,
+.custom-context-menu .menu-item:focus-within {
+  background: #e3eafc;
+  color: #1976d2;
+}
+.custom-context-menu .menu-checkbox {
+  margin-right: 8px;
+  font-size: 14px;
+  color: #1976d2;
+  font-weight: bold;
+}
+.custom-context-menu .submenu-arrow {
+  margin-left: auto;
+  color: #1976d2;
+  font-size: 15px;
+  font-weight: bold;
+  padding-left: 8px;
+}
+.custom-context-menu .submenu {
+  display: none;
+}
+.custom-context-menu .menu-item:hover > .submenu,
+.custom-context-menu .menu-item:focus-within > .submenu {
+  display: block;
+}
+
+.fme-constraints-panel, .fme-constraints-panel .fme-constraints-list, .fme-constraints-panel .fme-constraint-item {
+  font-family: monospace;
+}

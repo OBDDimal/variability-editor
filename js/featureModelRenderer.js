@@ -95,13 +95,13 @@ function positionLegendNextToTreeBBox(containerId) {
   pt.y = bbox.y;
   const screenPt = pt.matrixTransform(g.getScreenCTM());
   legend.style.position = 'absolute';
+  legend.classList.add('fme-noselect');
   legend.style.left = (screenPt.x + 100) + 'px';
   legend.style.top = (screenPt.y) + 'px';
   legend.dataset.userMoved = 'true';
   // Ensure legend is fully visible in the container
   const legendRect = legend.getBoundingClientRect();
   const containerRect = container.getBoundingClientRect();
-  // If legend is outside right or bottom, move it to top-right of container
   if (legendRect.right > containerRect.right || legendRect.bottom > containerRect.bottom) {
     legend.style.left = (containerRect.right - legendRect.width) + 'px';
     legend.style.top = containerRect.top + 'px';
@@ -139,7 +139,7 @@ function ensureLegend() {
     offsetX = e.clientX - legend.offsetLeft;
     offsetY = e.clientY - legend.offsetTop;
     legend.classList.add('fme-dragging');
-    document.body.style.userSelect = 'none';
+    document.body.classList.add('fme-noselect');
   });
   document.addEventListener('mousemove', (e) => {
     if (!isDragging) return;
@@ -150,7 +150,7 @@ function ensureLegend() {
   document.addEventListener('mouseup', () => {
     isDragging = false;
     legend.classList.remove('fme-dragging');
-    document.body.style.userSelect = '';
+    document.body.classList.remove('fme-noselect');
   });
 }
 
@@ -208,9 +208,9 @@ function updateLegendVisibility(root) {
   const baseRow = document.querySelector('#fme-legend [data-legend-type="base"]');
   if (baseRow) {
     if (nonBaseVisible === 0) {
-      baseRow.style.display = '';
+      baseRow.classList.remove('fme-hidden');
     } else {
-      baseRow.style.display = 'none';
+      baseRow.classList.add('fme-hidden');
     }
   }
 
@@ -222,12 +222,12 @@ function updateLegendVisibility(root) {
     if (key && present[key]) {
       // Hide mandatory if only root node is visible
       if (type === 'mandatory' && visibleNodeCount === 1) {
-        row.style.display = 'none';
+        row.classList.add('fme-hidden');
       } else {
-        row.style.display = '';
+        row.classList.remove('fme-hidden');
       }
     } else {
-      row.style.display = 'none';
+      row.classList.add('fme-hidden');
     }
   });
 
@@ -235,24 +235,24 @@ function updateLegendVisibility(root) {
   document.querySelectorAll('#fme-legend .fme-legend-sep').forEach(sep => {
     // Find previous and next visible legend rows
     let prev = sep.previousElementSibling;
-    while (prev && (prev.style.display === 'none' || !prev.matches('[data-legend-type]'))) prev = prev.previousElementSibling;
+    while (prev && (prev.classList.contains('fme-hidden') || !prev.matches('[data-legend-type]'))) prev = prev.previousElementSibling;
     let next = sep.nextElementSibling;
-    while (next && (next.style.display === 'none' || !next.matches('[data-legend-type]'))) next = next.nextElementSibling;
+    while (next && (next.classList.contains('fme-hidden') || !next.matches('[data-legend-type]'))) next = next.nextElementSibling;
     if (prev && next) {
-      sep.style.display = '';
+      sep.classList.remove('fme-hidden');
     } else {
-      sep.style.display = 'none';
+      sep.classList.add('fme-hidden');
     }
   });
   // Hide any .fme-legend-sep that immediately follows another visible .fme-legend-sep
   let lastWasSep = false;
   document.querySelectorAll('#fme-legend .fme-legend-content > *').forEach(row => {
-    if (row.classList.contains('fme-legend-sep') && row.style.display !== 'none') {
+    if (row.classList.contains('fme-legend-sep') && !row.classList.contains('fme-hidden')) {
       if (lastWasSep) {
-        row.style.display = 'none';
+        row.classList.add('fme-hidden');
       }
       lastWasSep = true;
-    } else if (row.style.display !== 'none') {
+    } else if (!row.classList.contains('fme-hidden')) {
       lastWasSep = false;
     }
   });
@@ -277,7 +277,7 @@ function showContextMenu(event, actions) {
     menuSel.selectAll('div.menu-item,div.menu-separator').remove();
     items.forEach((a, i) => {
       if (a.separator) {
-        menuSel.append('div').attr('class', 'menu-separator').style('height', '1px').style('background', '#eee').style('margin', '4px 0');
+        menuSel.append('div').attr('class', 'menu-separator');
         return;
       }
       const itemDiv = menuSel.append('div')
@@ -293,20 +293,6 @@ function showContextMenu(event, actions) {
             return base + (i === submenuActiveIndex && menuSel.node() === document.activeElement ? ' active' : '');
           }
         })
-        .attr('tabindex', a.disabled ? null : -1)
-        .style('padding', '8px 20px 8px 16px')
-        .style('cursor', a.disabled ? 'not-allowed' : 'pointer')
-        .style('display', 'flex')
-        .style('align-items', 'center')
-        .on('click', (e, a2) => {
-          if (a2.disabled) return;
-          if (a2.submenu) {
-            // Do nothing, handled by hover
-          } else if (a2.action) {
-            closeMenus();
-            a2.action();
-          }
-        })
         .html(function(a2) {
           let content = '';
           if (a2.checked !== undefined) {
@@ -317,18 +303,24 @@ function showContextMenu(event, actions) {
             content += '<span class="submenu-arrow">&#9654;</span>';
           }
           return content;
+        })
+        .on('click', (e, a2) => {
+          if (a2.disabled) return;
+          if (a2.submenu) {
+            // Do nothing, handled by hover
+          } else if (a2.action) {
+            closeMenus();
+            a2.action();
+          }
         });
       // Render submenu as child div if present
       if (a.submenu && Array.isArray(a.submenu)) {
         const submenuDiv = itemDiv.append('div')
           .attr('class', 'custom-context-menu submenu')
-          .style('position', 'absolute')
           .style('left', '100%')
           .style('top', '0')
           .style('display', 'none');
-        // RECURSIVE call
         renderMenuItems(submenuDiv, a.submenu, false);
-        // Show submenu on hover/focus
         itemDiv.on('mouseenter', function() {
           submenuDiv.style('display', 'block');
         });
@@ -513,14 +505,12 @@ function exportAsPNG(includeLegend = true) {
 
 function buildFeatureNodeFromObject(obj) {
   if (!obj) return null;
-  const { name, children = [], groupType, mandatory, abstract, type, collapsed, attr } = obj;
+  const { name, children = [], groupType, abstract, type, attr } = obj;
   return new FeatureNode(name, {
     children: (children || []).map(buildFeatureNodeFromObject),
     groupType,
-    mandatory,
     abstract,
     type,
-    collapsed,
     attr
   });
 }
@@ -555,6 +545,7 @@ function isEnglishFeatureName(name) {
 
 // Helper: get display text for a node
 function getDisplayText(name) {
+  if (typeof name !== 'string') return '';
   const first6 = name.slice(0, 6);
   const letterCount = (first6.match(/[a-zA-Z]/g) || []).length;
   if (name.length > 6 && letterCount <= 3) {
@@ -585,6 +576,23 @@ function toggleTheme(nextTheme) {
 }
 
 // --- Insert indicator nodes for hidden siblings ---
+class IndicatorNode {
+  constructor({ indicatorType, groupIdx, hiddenIndices }) {
+    this.indicatorType = indicatorType;
+    this.groupIdx = groupIdx;
+    this.hiddenIndices = hiddenIndices;
+    this.children = [];
+  }
+  toObject() {
+    return {
+      indicatorType: this.indicatorType,
+      groupIdx: this.groupIdx,
+      hiddenIndices: this.hiddenIndices,
+      children: []
+    };
+  }
+}
+
 function insertIndicatorNodes(node, parentPath = 'root') {
   if (!node.children || node.children.length === 0) return;
   const groups = hiddenSiblingsMap[parentPath] || [];
@@ -610,15 +618,11 @@ function insertIndicatorNodes(node, parentPath = 'root') {
       let indicatorType = 'diamond';
       if (firstIdx === 0) indicatorType = 'left';
       else if (lastIdx === node.children.length - 1) indicatorType = 'right';
-      // Create as FeatureNode
-      const indicatorNode = new FeatureNode('__INDICATOR__' + parentPath + '__' + groupIdx, {
-        isIndicator: true,
+      // Create as IndicatorNode
+      const indicatorNode = new IndicatorNode({
         indicatorType,
         groupIdx,
-        count: group.length,
-        parentPath,
-        hiddenIndices: group.slice(),
-        children: []
+        hiddenIndices: group.slice()
       });
       newChildren.push(indicatorNode);
       i = lastIdx + 1;
@@ -708,11 +712,11 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     return arr;
   }
   // Build hierarchy first (no layout yet)
-  let root = d3.hierarchy(featureModelRoot.toObject());
+  let root = d3.hierarchy(featureModelRoot);
   // Create a hidden SVG for measuring text widths
   let measureSvg = d3.select('body').select('svg#measure-svg');
   if (measureSvg.empty()) {
-    measureSvg = d3.select('body').append('svg').attr('id', 'measure-svg').style('position', 'absolute').style('left', '-9999px').style('top', '-9999px');
+    measureSvg = d3.select('body').append('svg').attr('id', 'measure-svg').attr('class', 'fme-measure-svg');
   }
   // Measure widths for all node names
   function measureTextWidth(text) {
@@ -723,7 +727,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     return w;
   }
   root.each(d => {
-    if (d.data.isIndicator) {
+    if (d.data instanceof IndicatorNode) {
       d._rectWidth = rectHeight; // uniform width for all indicator types
       d._displayText = '';
     } else {
@@ -741,11 +745,10 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
   const treeLayout = d3.tree()
     .nodeSize([1, rectHeight + levelDistance])
     .separation((a, b) => {
-      if (a.data.isIndicator || b.data.isIndicator) {
-          return siblingDistance * 0.125;
-        }
+      if (a.data instanceof IndicatorNode || b.data instanceof IndicatorNode) {
+        return siblingDistance * 0.125;
+      }
       if (a.parent === b.parent) {
-        
         return (a._rectWidth / 2 + siblingDistance + b._rectWidth / 2);
       }
       return 1; // default for non-siblings
@@ -797,7 +800,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
         let gap;
         if (prevNode) {
           if (prevNode.parent === node.parent) {
-            if (prevNode.data.isIndicator || node.data.isIndicator) {
+            if (prevNode.data instanceof IndicatorNode || node.data instanceof IndicatorNode) {
               gap = 0.25*grow_x;
             } else {
               gap = grow_x;
@@ -857,7 +860,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
 
   // Draw straight lines for links
   svgContent.selectAll('line.fme-edge')
-    .data(root.links().filter(d => !d.target.data.isIndicator))
+    .data(root.links().filter(d => !(d.target.data instanceof IndicatorNode)))
     .enter()
     .append('line')
     .attr('class', d => {
@@ -881,16 +884,17 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     .attr('cy', d => direction === 'v' ? d.target.y + rectHeight / 2 - rectHeight / 2 : d.target.y + rectHeight / 2);
 
   // Draw nodes (rects and text)
-  const node = svgContent.selectAll('g.fme-node')
+  svgContent.selectAll('g.node')
     .data(root.descendants())
     .enter()
     .append('g')
-    .attr('class', d => d.data.isIndicator ? 'fme-indicator-node' : `fme-node${d.data.abstract ? ' fme-abstract' : ''}`)
+    .attr('class', d => 'node ' + (d.data instanceof IndicatorNode ? 'fme-indicator-node' : 'fme-node' + (d.data.abstract ? ' fme-abstract' : '')))
     .attr('transform', d => `translate(${d.x},${d.y})`)
     .on('click', function(event, d) {
-      if (d.data.isIndicator) {
+      if (d.data instanceof IndicatorNode) {
         // Unhide group
-        const { parentPath, groupIdx, hiddenIndices } = d.data;
+        const { groupIdx, hiddenIndices } = d.data;
+        const parentPath = getNodePath(d.parent);
         hiddenIndices.forEach(idx => {
           const siblings = getModelNodeByPath(options.model, parentPath).children;
           const sibPath = parentPath + '/' + siblings[idx].name;
@@ -906,7 +910,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
       renderFeatureModel(containerId, options);
     })
     .on('contextmenu', function(event, d) {
-      if (d.data.isIndicator) return; // No context menu for indicator
+      if (d.data instanceof IndicatorNode) return; // No context menu for indicator
       event.preventDefault();
       d3.selectAll('.custom-context-menu').remove();
       const path = getNodePath(d);
@@ -962,10 +966,8 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
           },
           { label: 'Collapse all siblings to the left', action: () => {
               if (parentModelNode && siblings.length > 1 && idx > 0) {
-                // Collect all indices to the left, including already hidden
                 let indicesToHide = [];
                 for (let i = 0; i < idx; ++i) indicesToHide.push(i);
-                // Merge with any already hidden to the left
                 if (hiddenSiblingsMap[parentPath]) {
                   hiddenSiblingsMap[parentPath].forEach(group => {
                     group.forEach(i => { if (i < idx && !indicesToHide.includes(i)) indicesToHide.push(i); });
@@ -991,14 +993,13 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
                 renderFeatureModel(containerId, options);
               }
             }
-          },
-          { separator: true },
+          }
+        ] },
+        { label: 'Hiding', submenu: [
           { label: 'Hide all siblings to the left', action: () => {
               if (parentModelNode && siblings.length > 1 && idx > 0) {
-                // Collect all indices to the left, including already hidden
                 let indicesToHide = [];
                 for (let i = 0; i < idx; ++i) indicesToHide.push(i);
-                // Merge with any already hidden to the left
                 if (hiddenSiblingsMap[parentPath]) {
                   hiddenSiblingsMap[parentPath].forEach(group => {
                     group.forEach(i => { if (i < idx && !indicesToHide.includes(i)) indicesToHide.push(i); });
@@ -1027,10 +1028,8 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
           },
           { separator: true },
           { label: 'Hide this node', action: () => {
-              // Find adjacent groups and merge
               if (parentModelNode && siblings.length > 1 && idx >= 0) {
                 let indicesToHide = [idx];
-                // Merge with any adjacent groups
                 if (hiddenSiblingsMap[parentPath]) {
                   hiddenSiblingsMap[parentPath].forEach(group => {
                     if (group.includes(idx - 1) || group.includes(idx + 1) || group.includes(idx)) {
@@ -1052,73 +1051,18 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     });
 
   // Add native SVG <title> for tooltip if name is shortened
-  node.each(function(d) {
+  svgContent.selectAll('g.fme-node').each(function(d) {
     const name = d.data.name;
     const displayText = d._displayText;
-    if (displayText !== name) {
+    if (typeof name === 'string' && displayText !== name) {
       d3.select(this).append('title').text(name);
     }
   });
 
-  // Draw indicator nodes (minimal footprint, no node styling, no label)
-  node.filter(d => d.data.isIndicator).each(function(d) {
-    const { indicatorType, count } = d.data;
-    const g = d3.select(this);
-    if (indicatorType === 'left' || indicatorType === 'right') {
-      const base = rectHeight;
-      const halfBase = base / 2;
-      if (indicatorType === 'left') {
-        g.append('polygon')
-          .attr('points', `${-halfBase},0 ${halfBase},${-rectHeight/2} ${halfBase},${rectHeight/2}`)
-          .attr('fill', '#fff')
-          .attr('stroke', '#5e81ac')
-          .attr('stroke-width', 1.5);
-        g.append('text')
-          .attr('x', 0)
-          .attr('text-anchor', 'middle')
-          .attr('dy', '0.35em')
-          .attr('fill', '#111')
-          .attr('font-size', '10px')
-          .attr('font-family', 'monospace')
-          .attr('font-weight', 'bold')
-          .text(count > 9 ? '9+' : count);
-      } else {
-        g.append('polygon')
-          .attr('points', `${halfBase},0 ${-halfBase},${-rectHeight/2} ${-halfBase},${rectHeight/2}`)
-          .attr('fill', '#fff')
-          .attr('stroke', '#5e81ac')
-          .attr('stroke-width', 1.5);
-        g.append('text')
-          .attr('x', 0)
-          .attr('text-anchor', 'middle')
-          .attr('dy', '0.35em')
-          .attr('fill', '#111')
-          .attr('font-size', '10px')
-          .attr('font-family', 'monospace')
-          .attr('font-weight', 'bold')
-          .text(count > 9 ? '9+' : count);
-      }
-    } else {
-      const diamondSize = rectHeight/2;
-      g.append('polygon')
-        .attr('points', `0,${-diamondSize} ${diamondSize},0 0,${diamondSize} ${-diamondSize},0`)
-        .attr('fill', '#fff')
-        .attr('stroke', '#5e81ac')
-        .attr('stroke-width', 1.5);
-      g.append('text')
-        .attr('text-anchor', 'middle')
-        .attr('dy', '0.35em')
-        .attr('fill', '#111')
-        .attr('font-size', '9px')
-        .attr('font-family', 'monospace')
-        .attr('font-weight', 'bold')
-        .text(count > 9 ? '9+' : count);
-    }
-  });
-
-  // Draw normal nodes as before (rect/text) only for non-indicator nodes
-  const normalNodes = node.filter(d => !d.data.isIndicator);
-  normalNodes.append('rect')
+  // Only append rect/text to FeatureNode nodes
+  svgContent.selectAll('g.node')
+    .filter(d => d.data instanceof FeatureNode)
+    .append('rect')
     .attr('width', d => d._rectWidth)
     .attr('height', rectHeight)
     .attr('x', d => -d._rectWidth / 2)
@@ -1126,7 +1070,9 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     .attr('rx', 6)
     .attr('ry', 6);
 
-  normalNodes.append('text')
+  svgContent.selectAll('g.node')
+    .filter(d => d.data instanceof FeatureNode)
+    .append('text')
     .attr('dy', 5)
     .attr('text-anchor', 'middle')
     .attr('font-family', 'inherit')
@@ -1139,10 +1085,53 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
     })
     .text(d => d._displayText);
 
+  // Only append indicator graphics to IndicatorNode nodes
+  svgContent.selectAll('g.node')
+    .filter(d => d.data instanceof IndicatorNode)
+    .each(function(d) {
+      const { indicatorType, hiddenIndices } = d.data;
+      const count = hiddenIndices ? hiddenIndices.length : 0;
+      const g = d3.select(this);
+      g.selectAll('*').remove(); // Clear any previous content
+      g.style('cursor', 'pointer');
+      g.classed('fme-noselect', true);
+      if (indicatorType === 'left' || indicatorType === 'right') {
+        const base = rectHeight;
+        const halfBase = base / 2;
+        g.classed('fme-hidden-siblings-indicator', true);
+        if (indicatorType === 'left') {
+          g.append('polygon')
+            .attr('points', `${-halfBase},0 ${halfBase},${-rectHeight/2} ${halfBase},${rectHeight/2}`);
+          g.append('text')
+            .attr('x', 0.4*halfBase)
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.35em')
+            .text(count > 9 ? '9+' : count);
+        } else {
+          g.append('polygon')
+            .attr('points', `${halfBase},0 ${-halfBase},${-rectHeight/2} ${-halfBase},${rectHeight/2}`);
+          g.append('text')
+            .attr('x', -0.4*halfBase)
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.35em')
+            .text(count > 9 ? '9+' : count);
+        }
+      } else {
+        const diamondSize = rectHeight/2;
+        g.classed('fme-hidden-between-indicator', true);
+        g.append('polygon')
+          .attr('points', `0,${-diamondSize} ${diamondSize},0 0,${diamondSize} ${-diamondSize},0`);
+        g.append('text')
+          .attr('text-anchor', 'middle')
+          .attr('dy', '0.35em')
+          .text(count > 9 ? '9+' : count);
+      }
+    });
+
   // Draw node markers (mandatory/optional) after nodes so they appear above
   root.descendants().forEach(parent => {
     if (!parent.children || parent.children.length < 1) return;
-    const realChildren = parent.children.filter(child => !child.data.isIndicator);
+    const realChildren = parent.children.filter(child => !(child.data instanceof IndicatorNode));
     if (!realChildren.length) return;
     const types = realChildren.map(child => child.data.type);
     const allMandatoryOptional = types.every(t => t === 'mandatory' || t === 'optional');
@@ -1234,12 +1223,6 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
               .style('position', 'fixed')
               .style('left', `${badgeRect.right}px`)
               .style('top', `${badgeRect.top}px`)
-              .style('background', '#fff')
-              .style('color', '#222')
-              .style('padding', '12px 18px')
-              .style('box-shadow', '0 4px 16px rgba(0,0,0,0.18)')
-              .style('font-size', '15px')
-              .style('font-family', 'sans-serif')
               .style('pointer-events', 'none')
               .style('z-index', 10001)
               .html(`
@@ -1271,16 +1254,10 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
           .attr('height', badgeHeight)
           .attr('rx', 0)
           .attr('ry', 0)
-          .attr('fill', '#fffde7')
-          .attr('stroke', '#bbb')
-          .attr('stroke-width', 2)
-          .attr('opacity', 1);
+          .attr('class', 'fme-badge-rect');
         badgeGroup.append('text')
           .attr('y', 6)
-          .attr('text-anchor', 'middle')
-          .attr('fill', '#111')
-          .attr('font-size', 13)
-          .attr('font-family', 'sans-serif')
+          .attr('class', 'fme-badge-text')
           .text(count);
       }
     }
@@ -1371,126 +1348,7 @@ export function renderFeatureModel(containerId = 'app', options = {}) {
   }
 
   // Inject improved context menu styles if not already present
-  if (!document.getElementById('custom-context-menu-style')) {
-    const style = document.createElement('style');
-    style.id = 'custom-context-menu-style';
-    style.textContent = `
-      .custom-context-menu {
-        font-family: sans-serif !important;
-        min-width: 180px;
-        background: #f4f6fa;
-        border: 1.5px solid #90a4ae;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.13);
-        padding: 6px 0;
-        z-index: 10000;
-        user-select: none;
-        transition: box-shadow 0.2s;
-        position: absolute;
-      }
-      .custom-context-menu.submenu {
-        box-shadow: 0 2px 8px rgba(0,0,0,0.10);
-        margin-left: -2px;
-        min-width: 180px;
-        left: 100%;
-        top: 0;
-      }
-      .custom-context-menu .menu-item {
-        padding: 8px 20px 8px 16px;
-        cursor: pointer;
-        border: none;
-        background: none;
-        font-size: 15px;
-        color: #222;
-        outline: none;
-        margin: 0 4px;
-        transition: background 0.15s, color 0.15s;
-        display: flex;
-        align-items: center;
-        position: relative;
-      }
-      .custom-context-menu .menu-item.disabled {
-        color: #aaa !important;
-        background: #e3eafc !important;
-        cursor: not-allowed !important;
-        pointer-events: none !important;
-      }
-      .custom-context-menu .menu-item.active,
-      .custom-context-menu .menu-item:hover,
-      .custom-context-menu .menu-item:focus,
-      .custom-context-menu .menu-item:focus-within {
-        background: #e3eafc;
-        color: #1976d2;
-      }
-      .custom-context-menu .menu-checkbox {
-        margin-right: 8px;
-        font-size: 14px;
-        color: #1976d2;
-        font-weight: bold;
-      }
-      .custom-context-menu .submenu-arrow {
-        margin-left: auto;
-        color: #1976d2;
-        font-size: 15px;
-        font-weight: bold;
-        padding-left: 8px;
-      }
-      .custom-context-menu .submenu {
-        display: none;
-      }
-      .custom-context-menu .menu-item:hover > .submenu,
-      .custom-context-menu .menu-item:focus-within > .submenu {
-        display: block;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  // Badge tooltip style
-  if (!document.getElementById('badge-tooltip-style')) {
-    const style = document.createElement('style');
-    style.id = 'badge-tooltip-style';
-    style.textContent = `
-      .badge-tooltip {
-        transition: opacity 0.15s;
-        pointer-events: none;
-        max-width: 340px;
-        line-height: 1.6;
-        background: #f4f6fa;
-        color: #222;
-        border: 1.5px solid #90a4ae;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        font-family: sans-serif;
-      }
-      .badge-tooltip div { margin-bottom: 2px; }
-      .badge-tooltip .tooltip-table {
-        border-collapse: collapse;
-        width: 100%;
-      }
-      .badge-tooltip .tooltip-table td {
-        padding: 2px 8px 2px 0;
-        text-align: left;
-        vertical-align: top;
-        font-size: 15px;
-        font-family: sans-serif;
-        border: none;
-      }
-      .badge-tooltip .tooltip-type-row td {
-        font-size: 14px;
-        color: #666;
-        padding-top: 0;
-        padding-bottom: 0;
-      }
-      .badge-tooltip .tooltip-type-row .tooltip-type-count {
-        text-align: right;
-        color: #888;
-        font-variant-numeric: tabular-nums;
-      }
-      .badge-tooltip .tooltip-table-sep td {
-        padding-top: 8px;
-      }
-    `;
-    document.head.appendChild(style);
-  }
+  // (Removed: CSS is now in css/style.css)
 
   // After rendering, position legend next to tree bounding box
   positionLegendAuto(containerId);
@@ -1626,29 +1484,6 @@ function getArcAngles(parent, children, direction, rectWidth, rectHeight) {
   return { cx, cy, r, startAngle, endAngle };
 }
 
-// Helper to find FeatureNode by path
-function getFeatureNodeByPath(root, path) {
-  const parts = path.split('/').slice(1); // skip 'root'
-  let node = root;
-  for (const part of parts) {
-    if (!node.children) return null;
-    node = node.children.find(child => child.name === part);
-    if (!node) return null;
-  }
-  return node;
-}
-
-// Helper to find parent FeatureNode by path
-function getParentFeatureNodeByPath(root, path) {
-  const parts = path.split('/').slice(1, -1); // skip 'root', exclude last
-  let node = root;
-  for (const part of parts) {
-    if (!node.children) return null;
-    node = node.children.find(child => child.name === part);
-    if (!node) return null;
-  }
-  return node;
-}
 
 export function FeatureModelRenderer(options = {}) {
   let container = options.container || '#app';
@@ -1693,7 +1528,7 @@ function showRenameInput(d, modelNode, siblings, idx, containerId, options) {
   input.type = 'text';
   input.value = modelNode.name;
   input.id = 'rename-input-box';
-  input.style.position = 'fixed';
+  input.className = 'fme-rename-input';
   input.style.left = `${rectBox.left}px`;
   input.style.top = `${rectBox.top}px`;
   input.style.width = `${rectBox.width}px`;
@@ -1728,13 +1563,11 @@ function showRenameInput(d, modelNode, siblings, idx, containerId, options) {
     if (e.key === 'Enter') {
       const newName = input.value.trim();
       if (!newName) {
-        input.style.border = '2px solid #d32f2f';
-        input.style.background = '#fff0f0';
+        input.classList.add('fme-rename-error');
         return;
       }
       if (!isUniqueName(newName)) {
-        input.style.border = '2px solid #d32f2f';
-        input.style.background = '#fff0f0';
+        input.classList.add('fme-rename-error');
         return;
       }
       // Commit rename
@@ -1744,6 +1577,9 @@ function showRenameInput(d, modelNode, siblings, idx, containerId, options) {
     } else if (e.key === 'Escape') {
       removeInput();
     }
+  });
+  input.addEventListener('input', function() {
+    input.classList.remove('fme-rename-error');
   });
   // Remove input if focus lost
   input.addEventListener('blur', function() {
@@ -1857,7 +1693,8 @@ function createConstraintsPanel(containerId, constraints) {
       isResizing = true;
       startY = e.clientY;
       startHeight = panel.offsetHeight;
-      document.body.style.cursor = 'ns-resize';
+      panel.classList.add('fme-cursor-ns-resize');
+      document.body.classList.add('fme-cursor-ns-resize');
       e.preventDefault();
     });
     document.addEventListener('mousemove', function(e) {
@@ -1869,7 +1706,8 @@ function createConstraintsPanel(containerId, constraints) {
     });
     document.addEventListener('mouseup', function() {
       isResizing = false;
-      document.body.style.cursor = '';
+      panel.classList.remove('fme-cursor-ns-resize');
+      document.body.classList.remove('fme-cursor-ns-resize');
     });
   }
   

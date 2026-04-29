@@ -334,4 +334,190 @@
 
 .fme-hidden-between-indicator text {
   transition: fill 0.2s ease;
-} 
+}
+
+/* Utility for hiding elements */
+.fme-hidden { display: none !important; }
+
+/* Legend drag/positioning */
+#fme-legend { position: absolute; z-index: 1000; }
+#fme-legend.fme-dragging { cursor: grabbing; user-select: none; }
+
+/* For JS-dragged legend, left/top will be set dynamically, but all other styles here */
+
+/* Rename input overlay */
+.fme-rename-input {
+  position: fixed;
+  font-size: 15px;
+  font-family: monospace;
+  z-index: 10001;
+  padding: 0 8px;
+  border: 2px solid #1976d2;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.13);
+  outline: none;
+  text-align: center;
+}
+.fme-rename-input.fme-rename-error {
+  border: 2px solid #d32f2f;
+  background: #fff0f0;
+}
+
+/* No-select utility */
+.fme-noselect { user-select: none !important; }
+
+/* Drag cursor utility */
+.fme-cursor-ns-resize { cursor: ns-resize !important; }
+
+/* Indicator polygons for hidden siblings */
+.fme-hidden-siblings-indicator polygon {
+  fill: #fff;
+  stroke: #5e81ac;
+  stroke-width: 1.5;
+}
+
+.fme-hidden-siblings-indicator text {
+  fill: #111;
+  font-size: 10px;
+  font-family: monospace;
+  font-weight: bold;
+}
+
+
+.fme-hidden-between-indicator polygon {
+  fill: #fff;
+  stroke: #5e81ac;
+  stroke-width: 1.5;
+}
+.fme-hidden-between-indicator text {
+  fill: #111;
+  font-size: 10px;
+  font-family: monospace;
+  font-weight: bold;
+}
+
+/* Badge for collapsed nodes */
+.fme-badge-rect {
+  fill: #fffde7;
+  stroke: #bbb;
+  stroke-width: 2;
+  opacity: 1;
+}
+.fme-badge-text {
+  fill: #111;
+  font-size: 13px;
+  font-family: sans-serif;
+  text-anchor: middle;
+}
+
+/* Badge tooltip (for collapsed node info) */
+.badge-tooltip {
+  background: #fff;
+  color: #222;
+  padding: 12px 18px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  font-size: 15px;
+  font-family: sans-serif;
+  pointer-events: none;
+  z-index: 10001;
+  max-width: 340px;
+  line-height: 1.6;
+  border: 1.5px solid #90a4ae;
+  border-radius: 6px;
+}
+.badge-tooltip div { margin-bottom: 2px; }
+.badge-tooltip .tooltip-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.badge-tooltip .tooltip-table td {
+  padding: 2px 8px 2px 0;
+  text-align: left;
+  vertical-align: top;
+  font-size: 15px;
+  font-family: sans-serif;
+  border: none;
+}
+.badge-tooltip .tooltip-type-row td {
+  font-size: 14px;
+  color: #666;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.badge-tooltip .tooltip-type-row .tooltip-type-count {
+  text-align: right;
+  color: #888;
+  font-variant-numeric: tabular-nums;
+}
+.badge-tooltip .tooltip-table-sep td {
+  padding-top: 8px;
+}
+
+/* Context menu styles (move from JS) */
+.custom-context-menu {
+  font-family: sans-serif !important;
+  min-width: 180px;
+  background: #f4f6fa;
+  border: 1.5px solid #90a4ae;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.13);
+  padding: 6px 0;
+  z-index: 10000;
+  user-select: none;
+  transition: box-shadow 0.2s;
+  position: absolute;
+}
+.custom-context-menu.submenu {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  margin-left: -2px;
+  min-width: 180px;
+  left: 100%;
+  top: 0;
+}
+.menu-item {
+  padding: 8px 20px 8px 16px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: #222;
+  outline: none;
+  margin: 0 4px;
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.menu-item.disabled {
+  color: #aaa !important;
+  background: #e3eafc !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+.menu-item.active,
+.menu-item:hover,
+.menu-item:focus,
+.menu-item:focus-within {
+  background: #e3eafc;
+  color: #1976d2;
+}
+.menu-checkbox {
+  margin-right: 8px;
+  font-size: 14px;
+  color: #1976d2;
+  font-weight: bold;
+}
+.submenu-arrow {
+  margin-left: auto;
+  color: #1976d2;
+  font-size: 15px;
+  font-weight: bold;
+  padding-left: 8px;
+}
+.menu-separator {
+  height: 1px;
+  background: #eee;
+  margin: 4px 0;
+}
+.fme-badge { cursor: pointer; }
+.fme-measure-svg { position: absolute; left: -9999px; top: -9999px; } 
